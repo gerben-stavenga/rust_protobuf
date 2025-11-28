@@ -147,7 +147,7 @@ impl Object {
         field.push(b);
         field.last_mut().unwrap()
     }
-    
+
 }
 
 impl ParseContext {
@@ -174,7 +174,7 @@ impl ParseContext {
 
     fn pop_limit<'a>(&mut self) -> Option<(&'a mut Object, &'a Table)> {
         let depth = self.depth;
-        if depth == STACK_DEPTH {
+        if depth == self.stack.len() {
             return None;
         }
         self.depth = depth + 1;
@@ -200,7 +200,7 @@ impl ParseContext {
 
     fn pop_group<'a>(&mut self, field_number: u32) -> Option<(&'a mut Object, &'a Table)> {
         let depth = self.depth;
-        if depth == STACK_DEPTH {
+        if depth == self.stack.len() {
             return None;
         }
         self.depth = depth + 1;
@@ -241,150 +241,6 @@ fn validate_wire_type(tag: u32, expected_wire_type: u8) -> Option<()> {
     } else {
         None
     }
-}
-
-fn parse_loop_chunk(mut ptr: ReadCursor, end: NonNull<u8>, obj: &mut Object, table: &Table, expected_end: u32) -> Option<ReadCursor> {
-    while ptr < end {
-        let tag = ptr.read_tag()?;
-        if tag == 0 {
-            // Zero tag is invalid for ending a submessage
-            return None;
-        }
-        if (tag & 7) == 4 {
-            if tag != expected_end {
-                return None;
-            }
-            return Some(ptr);
-        }
-        let field_number = tag >> 3;
-        let entry = table.entry(field_number)?;
-        let offset = entry.data_offset as u32;
-        let has_bit_idx = entry.has_bit as u32;
-        match entry.kind {
-            FieldKind::Varint64 => { // varint64
-                validate_wire_type(tag, 0)?;
-                let value = ptr.read_varint()?;
-                *obj.ref_mut(offset) = value;
-                obj.set_has(has_bit_idx);
-            }
-            FieldKind::Varint32 => { // varint32
-                validate_wire_type(tag, 0)?;
-                let value = ptr.read_varint()?;
-                *obj.ref_mut(offset) = value as u32;
-                obj.set_has(has_bit_idx);
-            }
-            FieldKind::Varint64Zigzag => { // varint64 zigzag
-                validate_wire_type(tag, 0)?;
-                let value = ptr.read_varint()?;
-                *obj.ref_mut(offset) = zigzag_decode(value);
-                obj.set_has(has_bit_idx);
-            }
-            FieldKind::Varint32Zigzag => { // varint32 zigzag
-                validate_wire_type(tag, 0)?;
-                let value = ptr.read_varint()?;
-                *obj.ref_mut(offset) = zigzag_decode(value) as u32;
-                obj.set_has(has_bit_idx);
-            }
-            FieldKind::Fixed64 => { // fixed64
-                validate_wire_type(tag, 1)?;
-                let value = ptr.read_unaligned::<u64>();
-                *obj.ref_mut(offset) = value;
-                obj.set_has(has_bit_idx);
-            }
-            FieldKind::Fixed32 => { // fixed32
-                validate_wire_type(tag, 5)?;
-                let value = ptr.read_unaligned::<u32>();
-                *obj.ref_mut(offset) = value;
-                obj.set_has(has_bit_idx);
-            }
-            FieldKind::Bytes => { // bytes
-                validate_wire_type(tag, 2)?;
-                let len = ptr.read_size()?;
-                if ptr - end + len > 0 {
-                    return None;
-                }
-                obj.set_bytes(offset, has_bit_idx, ptr.read_slice(len));
-            }
-            FieldKind::Message => { // message
-                validate_wire_type(tag, 0)?;
-                let len = ptr.read_size()?;
-                if ptr - end + len > 0 {
-                    return None;
-                }
-                let aux_entry = table.aux_entry(offset);
-                let (child, child_table) = obj.get_or_create_child_object(aux_entry, has_bit_idx);
-                let new_end = ptr.limit(len);
-                ptr = parse_loop_chunk(ptr, new_end, child, child_table, 0)?;
-            }
-            FieldKind::Group => { // start group
-                validate_wire_type(tag, 3)?;
-                let group_tag = tag + 1;
-                let aux_entry = table.aux_entry(offset);
-                let (child, child_table) = obj.get_or_create_child_object(aux_entry, has_bit_idx);
-                ptr = parse_loop_chunk(ptr, end, child, child_table, group_tag + 1)?;
-            }
-            FieldKind::RepeatedVarint64 => { // varint64
-                validate_wire_type(tag, 0)?;
-                let value = ptr.read_varint()?;
-                obj.add(offset, value);
-            }
-            FieldKind::RepeatedVarint32 => { // varint32
-                validate_wire_type(tag, 0)?;
-                let value = ptr.read_varint()?;
-                obj.add(offset, value as u32);
-            }
-            FieldKind::RepeatedVarint64Zigzag => { // varint64 zigzag
-                validate_wire_type(tag, 0)?;
-                let value = ptr.read_varint()?;
-                obj.add(offset, zigzag_decode(value));
-            }
-            FieldKind::RepeatedVarint32Zigzag => { // varint32 zigzag
-                validate_wire_type(tag, 0)?;
-                let value = ptr.read_varint()?;
-                obj.add(offset, zigzag_decode(value) as u32);
-            }
-            FieldKind::RepeatedFixed64 => { // fixed64
-                validate_wire_type(tag, 1)?;
-                let value = ptr.read_unaligned::<u64>();
-                obj.add(offset, value);
-            }
-            FieldKind::RepeatedFixed32 => { // fixed32
-                validate_wire_type(tag, 5)?;
-                let value = ptr.read_unaligned::<u32>();
-                obj.add(offset, value);
-            }
-            FieldKind::RepeatedBytes => { // bytes
-                validate_wire_type(tag, 2)?;
-                let len = ptr.read_size()?;
-                if ptr - end + len > 0 {
-                    return None;
-                }
-                obj.add_bytes(offset, ptr.read_slice(len));
-            }
-            FieldKind::RepeatedMessage => { // message
-                validate_wire_type(tag, 0)?;
-                let len = ptr.read_size()?;
-                if ptr - end + len > 0 {
-                    return None;
-                }
-                let aux_entry = table.aux_entry(offset);
-                let (child, child_table) = obj.add_child_object(aux_entry);
-                let new_end = ptr.limit(len);
-                ptr = parse_loop_chunk(ptr, new_end, child, child_table, 0)?;
-            }
-            FieldKind::RepeatedGroup => { // start group
-                validate_wire_type(tag, 3)?;
-                let group_tag = tag + 1;
-                let aux_entry = table.aux_entry(offset);
-                let (child, child_table) = obj.add_child_object(aux_entry);
-                ptr = parse_loop_chunk(ptr, end, child, child_table, group_tag + 1)?;
-            }
-        }
-    }
-    if expected_end != 0 || ptr != end {
-        return None;
-    }
-    Some(ptr)
 }
 
 fn parse_loop(mut ptr: ReadCursor, end: NonNull<u8>, ctx: &mut ParseContext) -> Option<ReadCursor> {
@@ -546,7 +402,7 @@ fn parse_loop(mut ptr: ReadCursor, end: NonNull<u8>, ctx: &mut ParseContext) -> 
     Some(ptr)
 }
 
-pub fn parse(obj: &mut Object, table: &Table, buf: &[u8]) -> Option<()> {
+pub fn parse_flat(obj: &mut Object, table: &Table, buf: &[u8]) -> Option<()> {
     let mut patch_buffer = [0u8; SLOP_SIZE * 2];
     if buf.len() <= SLOP_SIZE {
         patch_buffer[..buf.len()].copy_from_slice(buf);
@@ -572,6 +428,16 @@ pub fn parse(obj: &mut Object, table: &Table, buf: &[u8]) -> Option<()> {
             None
         }
     }
+}
+
+pub fn parse_from_bufread(obj: &mut Object, table: &Table, reader: &mut impl std::io::BufRead) -> Result<()> {
+    let mut parser = ResumeableParse::new(obj, table, isize::MAX);
+    loop {
+        let buffer = reader.fill_buf()?;
+        parser.resume(&buffer[..n]).ok_or(error!("parse error"))?;
+        reader.consume(buffer.len());
+    }
+    parser.finish()
 }
 
 pub struct ResumeableParse {
@@ -614,7 +480,7 @@ impl ResumeableParse {
 
     pub fn finish(&mut self) -> Option<()> {
         let overrun = Self::go_parse(self.overrun, &self.patch_buffer[..SLOP_SIZE], &mut self.ctx)?;
-        if overrun == 0 && self.ctx.depth == STACK_DEPTH {
+        if overrun == 0 && self.ctx.depth == self.ctx.stack.len() {
             Some(())
         } else {
             None
