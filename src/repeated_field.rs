@@ -1,4 +1,5 @@
 use std::alloc::{self, Layout};
+use std::fmt::Debug;
 use std::marker::PhantomData;
 use std::mem;
 use std::ops::{Deref, DerefMut};
@@ -126,6 +127,25 @@ pub struct RepeatedField<T> {
     phantom: std::marker::PhantomData<T>,
 }
 
+impl<T> Default for RepeatedField<T> {
+    fn default() -> Self {
+        RepeatedField {
+            buf: if std::mem::size_of::<T>() == 0 { RawVec::new_zst() } else { RawVec::new() },
+            len: 0,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<T> Debug for RepeatedField<T> 
+where
+    T: Debug,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.as_ref().fmt(f)
+    }
+}
+
 impl<T> RepeatedField<T> {
     fn ptr(&self) -> *mut T {
         self.buf.ptr.as_ptr() as *mut T
@@ -136,11 +156,7 @@ impl<T> RepeatedField<T> {
     }
 
     pub fn new() -> Self {
-        RepeatedField {
-            buf: if std::mem::size_of::<T>() == 0 { RawVec::new_zst() } else { RawVec::new() },
-            len: 0,
-            phantom: std::marker::PhantomData,
-        }
+        Self::default()
     }
 
     pub fn from_slice(slice: &[T]) -> Self 
@@ -231,9 +247,19 @@ impl<T> RepeatedField<T> {
         T: Copy,
     {
         self.clear();
-        self.reserve(slice.len());
-        unsafe { self.ptr().copy_from_nonoverlapping(slice.as_ptr(), slice.len()) };
-        self.len = slice.len();
+        self.append(slice);
+    }
+
+    pub fn append(&mut self, slice: &[T]) 
+    where
+        T: Copy,
+    {
+        let old_len = self.len;
+        self.reserve(old_len + slice.len());
+        unsafe {
+            self.ptr().add(old_len).copy_from_nonoverlapping(slice.as_ptr(), slice.len());
+        }
+        self.len = old_len + slice.len();
     }
 }
 

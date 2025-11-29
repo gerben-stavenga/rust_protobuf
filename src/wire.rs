@@ -1,5 +1,7 @@
 use std::{ops::{Add, AddAssign, Index, IndexMut, Sub}, ptr::NonNull};
 
+pub(crate) const SLOP_SIZE: usize = 16;
+
 pub fn zigzag_decode(n: u64) -> i64 {
     ((n >> 1) as i64) ^ (-((n & 1) as i64))
 }
@@ -14,12 +16,8 @@ pub struct ReadCursor(NonNull<u8>);
 impl ReadCursor {
     pub fn new(buffer: &[u8]) -> (Self, NonNull<u8>) {
         let ptr = ReadCursor(NonNull::from_ref(&buffer[0]));
-        let end = ptr.limit(buffer.len() as isize);
+        let end = (ptr + buffer.len() as isize).0;
         (ptr, end)
-    }
-
-    pub fn limit(&self, len: isize) -> NonNull<u8> {
-        (*self + len).0
     }
 
     pub fn read_varint(&mut self) -> Option<u64> {
@@ -131,45 +129,53 @@ impl Index<isize> for ReadCursor {
     }
 }
 
+fn varint_size(n: u64) -> isize {
+    let log2 = 64 - (n | 1).leading_zeros();
+    ((log2 * 9 + 64 + 9) / 64) as isize
+}
+
 #[derive(Clone, Copy)]
 pub struct WriteCursor(NonNull<u8>);
 
 impl WriteCursor {
     pub fn new(buffer: &mut [u8]) -> (Self, NonNull<u8>) {
-        let ptr = WriteCursor(NonNull::from_ref(&mut buffer[0]));
-        let end = ptr.limit(buffer.len() as isize);
+        let mut ptr = WriteCursor(NonNull::from_ref(&mut buffer[0]));
+        let end = ptr.0;
+        ptr += buffer.len() as isize;
         (ptr, end)
     }
 
-    pub fn limit(&self, len: isize) -> NonNull<u8> {
-        (*self + len).0
-    }
-
     pub fn write_varint(&mut self, mut n: u64) {
+        *self += -varint_size(n);
+        let mut i = 0;
         while n >= 0x80 {
-            self[0] = n as u8 | 0x80;
-            *self += 1;
+            self[i] = n as u8 | 0x80;
             n >>= 7;
+            i += 1;
         }
-        self[0] = n as u8;
-        *self += 1;
+        self[i] = n as u8;
     }
 
     pub fn write_unaligned<T>(&mut self, value: T) {
+        *self += -(std::mem::size_of::<T>() as isize);
         let p = self.0.as_ptr();
         unsafe {
             std::ptr::write_unaligned(p as *mut T, value);
         }
-        *self += std::mem::size_of::<T>() as isize;
     }
 
     pub fn write_slice(&mut self, slice: &[u8]) {
         let len = slice.len();
+        *self += -(len as isize);
         let p = self.0.as_ptr();
         unsafe {
             std::ptr::copy_nonoverlapping(slice.as_ptr(), p, len);
         }
-        *self += len as isize;
+    }
+
+    pub fn write_tag(&mut self, tag: [u8; 4]) {
+        self.write_unaligned(tag);
+        *self += tag[0] as isize;
     }
 }
 
