@@ -252,7 +252,7 @@ pub fn set_$name$(&mut self, value: $type$) {
 
 impl protobuf::Protobuf for $name$ {
     fn encoding_table() -> &'static [crate::encoding::TableEntry] {
-        unimplemented!()
+        &ENCODING_TABLE_$name$.0
     }
     fn decoding_table() -> &'static crate::decoding::Table {
         &DECODING_TABLE_$name$.0
@@ -365,7 +365,7 @@ static ENCODING_TABLE_$name$: protobuf::encoding::TableWithEntries<$num_entries$
 [
 )rs");
     aux_idx = 0;
-    for (int i = 0; i < descriptor->field_count(); ++i) {
+    for (int i = descriptor->field_count() - 1; i >= 0; --i) {
         const gp::FieldDescriptor* field = descriptor->field(i);
         if (field->label() == gp::FieldDescriptor::LABEL_REPEATED) {
             assert(false && "repeated fields not implemented yet");
@@ -418,25 +418,22 @@ static ENCODING_TABLE_$name$: protobuf::encoding::TableWithEntries<$num_entries$
             }
             auto tag = gp::internal::WireFormatLite::MakeTag(field->number(),
                 gp::internal::WireFormat::WireTypeForFieldType(field->type()));
-            uint8_t buffer[6] = {};
-            buffer[0] = gp::internal::WireFormatLite::WriteUInt32NoTagToArray(tag, buffer + 1) - (buffer + 1);
-            uint32_t encoded_tag;
-            std::memcpy(&encoded_tag, buffer, sizeof(encoded_tag));
+            // TODO: optimize tag
             if (needs_aux) {
                 printer->Emit(
                     {{"has_bit", has_bit_idx[field]},
                     {"aux_idx", std::to_string(aux_idx++)},
                     {"kind", field_kind},
-                    {"num_entries", max_field_number + 1},
+                    {"num_entries", descriptor->field_count()},
                     {"num_aux_entries", num_aux_entries},
-                    {"encoded_tag", encoded_tag},
+                    {"encoded_tag", tag},
                     {"field_name", field->name()}},
                     "protobuf::encoding::TableEntry {has_bit: $has_bit$, kind: $kind$, offset: (std::mem::offset_of!(protobuf::encoding::TableWithEntries<$num_entries$, $num_aux_entries$>, 1) + $aux_idx$ * std::mem::size_of::<protobuf::encoding::AuxTableEntry>()) as u16, encoded_tag: $encoded_tag$},\n");
             } else {
                 printer->Emit(
                     {{"has_bit", has_bit_idx[field]},
                     {"kind", field_kind},
-                    {"encoded_tag", encoded_tag},
+                    {"encoded_tag", tag},
                     {"field_name", field->name()}},
                     "protobuf::encoding::TableEntry {has_bit: $has_bit$, kind: $kind$, offset: std::mem::offset_of!($name$, $field_name$) as u16, encoded_tag: $encoded_tag$},\n");
             }
@@ -445,7 +442,7 @@ static ENCODING_TABLE_$name$: protobuf::encoding::TableWithEntries<$num_entries$
     printer->Emit(R"rs(
 ], [
 )rs");
-    for (int i = 0; i < descriptor->field_count(); ++i) {
+    for (int i = descriptor->field_count() - 1; i >= 0; --i) {
         const gp::FieldDescriptor* field = descriptor->field(i);
         if (field->type() == gp::FieldDescriptor::TYPE_MESSAGE ||
             field->type() == gp::FieldDescriptor::TYPE_GROUP) {

@@ -47,15 +47,20 @@ impl Table {
     }
 
     fn aux_entry(&self, offset: u32) -> &AuxTableEntry {
-        unsafe { 
-            let aux_table_ptr = (self as *const Table as *const u8).add(offset as usize) as *const AuxTableEntry;
+        unsafe {
+            let aux_table_ptr =
+                (self as *const Table as *const u8).add(offset as usize) as *const AuxTableEntry;
             &*aux_table_ptr
         }
     }
 }
 
 #[repr(C)]
-pub struct TableWithEntries<const NUM_ENTRIES: usize, const NUM_AUX_ENTRIES: usize>(pub Table, pub [TableEntry; NUM_ENTRIES], pub [AuxTableEntry; NUM_AUX_ENTRIES]);
+pub struct TableWithEntries<const NUM_ENTRIES: usize, const NUM_AUX_ENTRIES: usize>(
+    pub Table,
+    pub [TableEntry; NUM_ENTRIES],
+    pub [AuxTableEntry; NUM_AUX_ENTRIES],
+);
 
 struct StackEntry {
     obj: *mut Object,
@@ -64,7 +69,11 @@ struct StackEntry {
 }
 
 impl StackEntry {
-    fn to_context<'a>(&self, mut limit: isize, field_number: Option<u32>) -> Option<ParseContext<'a>> {
+    fn to_context<'a>(
+        &self,
+        mut limit: isize,
+        field_number: Option<u32>,
+    ) -> Option<ParseContext<'a>> {
         if let Some(field_number) = field_number {
             if -self.delta_limit_or_group_tag != field_number as isize {
                 return None;
@@ -85,7 +94,7 @@ impl StackEntry {
 
 #[repr(C)]
 struct ParseContext<'a> {
-    limit: isize,  // relative to end
+    limit: isize, // relative to end
     obj: &'a mut Object,
     table: &'a Table,
 }
@@ -95,7 +104,13 @@ impl<'a> ParseContext<'a> {
         unsafe { end.offset(self.limit.min(0)) }
     }
 
-    fn push_limit(&mut self, len: isize, cursor: ReadCursor, end: NonNull<u8>, stack: &mut Stack<StackEntry>) -> Option<NonNull<u8>> {
+    fn push_limit(
+        &mut self,
+        len: isize,
+        cursor: ReadCursor,
+        end: NonNull<u8>,
+        stack: &mut Stack<StackEntry>,
+    ) -> Option<NonNull<u8>> {
         let new_limit = cursor - end + len;
         let delta_limit = self.limit - new_limit;
         if delta_limit < 0 {
@@ -110,7 +125,11 @@ impl<'a> ParseContext<'a> {
         Some(self.limited_end(end))
     }
 
-    fn pop_limit(&mut self, end: NonNull<u8>, stack: &mut Stack<StackEntry>) -> Option<NonNull<u8>> {
+    fn pop_limit(
+        &mut self,
+        end: NonNull<u8>,
+        stack: &mut Stack<StackEntry>,
+    ) -> Option<NonNull<u8>> {
         *self = stack.pop()?.to_context(self.limit, None)?;
         Some(self.limited_end(end))
     }
@@ -131,7 +150,10 @@ impl<'a> ParseContext<'a> {
 }
 
 impl Object {
-    fn get_or_create_child_object<'a>(&'a mut self, aux_entry: &AuxTableEntry) -> (&'a mut Object, &'a Table) {
+    fn get_or_create_child_object<'a>(
+        &'a mut self,
+        aux_entry: &AuxTableEntry,
+    ) -> (&'a mut Object, &'a Table) {
         let field = self.ref_mut::<*mut Object>(aux_entry.offset);
         let child_table = unsafe { &*aux_entry.child_table };
         let child = if (*field).is_null() {
@@ -144,7 +166,10 @@ impl Object {
         (child, child_table)
     }
 
-    fn add_child_object<'a>(&'a mut self, aux_entry: &AuxTableEntry) -> (&'a mut Object, &'a Table) {
+    fn add_child_object<'a>(
+        &'a mut self,
+        aux_entry: &AuxTableEntry,
+    ) -> (&'a mut Object, &'a Table) {
         let field = self.ref_mut::<RepeatedField<*mut Object>>(aux_entry.offset);
         let child_table = unsafe { &*aux_entry.child_table };
         let child = Self::create(child_table.size);
@@ -152,7 +177,6 @@ impl Object {
         (child, child_table)
     }
 }
-
 
 #[repr(u8)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -188,7 +212,13 @@ fn validate_wire_type(tag: u32, expected_wire_type: u8) -> Option<()> {
 
 type ParseLoopResult<'a> = Option<(ReadCursor, isize, ParseObject<'a>)>;
 
-fn parse_string<'a>(limit: isize, bytes: &'a mut Bytes, mut cursor: ReadCursor, end: NonNull<u8>, stack: &mut Stack<StackEntry>) -> ParseLoopResult<'a> {
+fn parse_string<'a>(
+    limit: isize,
+    bytes: &'a mut Bytes,
+    mut cursor: ReadCursor,
+    end: NonNull<u8>,
+    stack: &mut Stack<StackEntry>,
+) -> ParseLoopResult<'a> {
     if limit > SLOP_SIZE as isize {
         bytes.append(cursor.read_slice(SLOP_SIZE as isize - (cursor - end)));
         return Some((cursor, limit, ParseObject::Bytes(bytes)));
@@ -198,14 +228,20 @@ fn parse_string<'a>(limit: isize, bytes: &'a mut Bytes, mut cursor: ReadCursor, 
     parse_loop(ctx, cursor, end, stack)
 }
 
-fn parse_loop<'a>(mut ctx: ParseContext<'a>, mut cursor: ReadCursor, end: NonNull<u8>, stack: &mut Stack<StackEntry>) -> ParseLoopResult<'a> {
+#[inline(never)]
+fn parse_loop<'a>(
+    mut ctx: ParseContext<'a>,
+    mut cursor: ReadCursor,
+    end: NonNull<u8>,
+    stack: &mut Stack<StackEntry>,
+) -> ParseLoopResult<'a> {
     let mut limited_end = ctx.limited_end(end);
     // loop popping the stack as needed
     loop {
         // inner parse loop
         while cursor < limited_end {
             let tag = cursor.read_tag()?;
-            // println!("tag: {}", tag);
+            // println!("tag: {:o}", tag);
             if tag == 0 {
                 if stack.is_empty() {
                     return Some((cursor, ctx.limit, ParseObject::None));
@@ -224,109 +260,136 @@ fn parse_loop<'a>(mut ctx: ParseContext<'a>, mut cursor: ReadCursor, end: NonNul
                 FieldKind::Unknown => {
                     return None;
                 }
-                FieldKind::Varint64 => { // varint64
+                FieldKind::Varint64 => {
+                    // varint64
                     validate_wire_type(tag, 0);
                     let value = cursor.read_varint()?;
                     ctx.obj.set(offset, has_bit_idx, value);
                 }
-                FieldKind::Varint32 => { // varint32
+                FieldKind::Varint32 => {
+                    // varint32
                     validate_wire_type(tag, 0);
                     let value = cursor.read_varint()?;
                     ctx.obj.set(offset, has_bit_idx, value as u32);
                 }
-                FieldKind::Varint64Zigzag => { // varint64 zigzag
+                FieldKind::Varint64Zigzag => {
+                    // varint64 zigzag
                     validate_wire_type(tag, 0);
                     let value = cursor.read_varint()?;
                     ctx.obj.set(offset, has_bit_idx, zigzag_decode(value));
                 }
-                FieldKind::Varint32Zigzag => { // varint32 zigzag
+                FieldKind::Varint32Zigzag => {
+                    // varint32 zigzag
                     validate_wire_type(tag, 0);
                     let value = cursor.read_varint()?;
-                    ctx.obj.set(offset, has_bit_idx, zigzag_decode(value) as u32);
+                    ctx.obj
+                        .set(offset, has_bit_idx, zigzag_decode(value) as u32);
                 }
-                FieldKind::Fixed64 => { // fixed64
+                FieldKind::Fixed64 => {
+                    // fixed64
                     validate_wire_type(tag, 1);
                     let value = cursor.read_unaligned::<u64>();
                     ctx.obj.set(offset, has_bit_idx, value);
                 }
-                FieldKind::Fixed32 => { // fixed32
+                FieldKind::Fixed32 => {
+                    // fixed32
                     validate_wire_type(tag, 5);
                     let value = cursor.read_unaligned::<u32>();
                     ctx.obj.set(offset, has_bit_idx, value);
                 }
-                FieldKind::Bytes => { // bytes
+                FieldKind::Bytes => {
+                    // bytes
                     validate_wire_type(tag, 2);
                     let len = cursor.read_size()?;
                     if cursor - limited_end + len <= SLOP_SIZE as isize {
-                        ctx.obj.set_bytes(offset, has_bit_idx, cursor.read_slice(len));
+                        ctx.obj
+                            .set_bytes(offset, has_bit_idx, cursor.read_slice(len));
                     } else {
                         ctx.push_limit(len, cursor, end, stack)?;
-                        let bytes = ctx.obj.set_bytes(offset, has_bit_idx, cursor.read_slice(SLOP_SIZE as isize - (cursor - end)));
+                        let bytes = ctx.obj.set_bytes(
+                            offset,
+                            has_bit_idx,
+                            cursor.read_slice(SLOP_SIZE as isize - (cursor - end)),
+                        );
                         return Some((cursor, ctx.limit, ParseObject::Bytes(bytes)));
                     }
                 }
-                FieldKind::Message => { // message
+                FieldKind::Message => {
+                    // message
                     validate_wire_type(tag, 2);
                     let len = cursor.read_size()?;
                     let aux_entry = ctx.table.aux_entry(offset);
                     limited_end = ctx.push_limit(len, cursor, end, stack)?;
                     (ctx.obj, ctx.table) = ctx.obj.get_or_create_child_object(aux_entry);
                 }
-                FieldKind::Group => { // start group
+                FieldKind::Group => {
+                    // start group
                     validate_wire_type(tag, 3);
                     let aux_entry = ctx.table.aux_entry(offset);
                     ctx.push_group(field_number, stack)?;
                     (ctx.obj, ctx.table) = ctx.obj.get_or_create_child_object(aux_entry);
                 }
-                FieldKind::RepeatedVarint64 => { // varint64
+                FieldKind::RepeatedVarint64 => {
+                    // varint64
                     validate_wire_type(tag, 0);
                     let value = cursor.read_varint()?;
                     ctx.obj.add(offset, value);
                 }
-                FieldKind::RepeatedVarint32 => { // varint32
+                FieldKind::RepeatedVarint32 => {
+                    // varint32
                     validate_wire_type(tag, 0);
                     let value = cursor.read_varint()?;
                     ctx.obj.add(offset, value as u32);
                 }
-                FieldKind::RepeatedVarint64Zigzag => { // varint64 zigzag
+                FieldKind::RepeatedVarint64Zigzag => {
+                    // varint64 zigzag
                     validate_wire_type(tag, 0);
                     let value = cursor.read_varint()?;
                     ctx.obj.add(offset, zigzag_decode(value));
                 }
-                FieldKind::RepeatedVarint32Zigzag => { // varint32 zigzag
+                FieldKind::RepeatedVarint32Zigzag => {
+                    // varint32 zigzag
                     validate_wire_type(tag, 0);
                     let value = cursor.read_varint()?;
                     ctx.obj.add(offset, zigzag_decode(value) as u32);
                 }
-                FieldKind::RepeatedFixed64 => { // fixed64
+                FieldKind::RepeatedFixed64 => {
+                    // fixed64
                     validate_wire_type(tag, 1);
                     let value = cursor.read_unaligned::<u64>();
                     ctx.obj.add(offset, value);
                 }
-                FieldKind::RepeatedFixed32 => { // fixed32
+                FieldKind::RepeatedFixed32 => {
+                    // fixed32
                     validate_wire_type(tag, 5);
                     let value = cursor.read_unaligned::<u32>();
                     ctx.obj.add(offset, value);
                 }
-                FieldKind::RepeatedBytes => { // bytes
+                FieldKind::RepeatedBytes => {
+                    // bytes
                     validate_wire_type(tag, 2);
                     let len = cursor.read_size()?;
                     if cursor - limited_end + len <= SLOP_SIZE as isize {
                         ctx.obj.add_bytes(offset, cursor.read_slice(len));
                     } else {
                         ctx.push_limit(len, cursor, end, stack)?;
-                        let bytes = ctx.obj.add_bytes(offset, cursor.read_slice(SLOP_SIZE as isize - (cursor - end)));
+                        let bytes = ctx.obj.add_bytes(
+                            offset,
+                            cursor.read_slice(SLOP_SIZE as isize - (cursor - end)),
+                        );
                         return Some((cursor, ctx.limit, ParseObject::Bytes(bytes)));
                     }
                 }
-                FieldKind::RepeatedMessage => { // message
+                FieldKind::RepeatedMessage => {
+                    // message
                     validate_wire_type(tag, 2);
                     let len = cursor.read_size()?;
                     let aux_entry = ctx.table.aux_entry(offset);
                     limited_end = ctx.push_limit(len, cursor, end, stack)?;
                     (ctx.obj, ctx.table) = ctx.obj.add_child_object(aux_entry);
                 }
-                FieldKind::RepeatedGroup => { // start group
+                FieldKind::RepeatedGroup => {
+                    // start group
                     validate_wire_type(tag, 3);
                     let aux_entry = ctx.table.aux_entry(offset);
                     ctx.push_group(field_number, stack)?;
@@ -349,40 +412,6 @@ fn parse_loop<'a>(mut ctx: ParseContext<'a>, mut cursor: ReadCursor, end: NonNul
         }
     }
     Some((cursor, ctx.limit, ParseObject::Message(ctx.obj, ctx.table)))
-}
-
-#[must_use]
-pub fn parse_flat<const STACK_DEPTH: usize>(obj: &mut impl Protobuf, buf: &[u8]) -> bool {
-    let mut parser = ResumeableParse::<STACK_DEPTH>::new(obj, isize::MAX);
-    if !parser.resume(buf) {
-        return false;
-    }
-    parser.finish()
-}
-
-pub fn parse_from_bufread<const STACK_DEPTH: usize>(obj: &mut impl Protobuf, reader: &mut impl std::io::BufRead) -> anyhow::Result<()> {
-    let mut parser = ResumeableParse::<STACK_DEPTH>::new(obj, isize::MAX);
-    let mut len = 0;
-    loop {
-        reader.consume(len);
-        let buffer = reader.fill_buf()?;
-        len = buffer.len();
-        if len == 0 {
-            break;
-        }
-        if !parser.resume(&buffer) {
-            return Err(anyhow::anyhow!("parse error"));
-        }
-    }
-    if !parser.finish() {
-        return Err(anyhow::anyhow!("parse error"));
-    }
-    Ok(())
-}
-
-pub fn parse_from_read<const STACK_DEPTH: usize>(obj: &mut impl Protobuf, reader: &mut impl std::io::Read) -> anyhow::Result<()> {
-    let mut buf_reader = std::io::BufReader::new(reader);
-    parse_from_bufread::<STACK_DEPTH>(obj, &mut buf_reader)
 }
 
 enum ParseObject<'a> {
@@ -416,10 +445,8 @@ impl<'a> ResumeableState<'a> {
                 };
                 parse_loop(ctx, cursor, end, stack)?
             }
-            ParseObject::Bytes(bytes) => {
-                parse_string(self.limit, bytes, cursor, end, stack)?
-            }
-            ParseObject::None => return None,
+            ParseObject::Bytes(bytes) => parse_string(self.limit, bytes, cursor, end, stack)?,
+            ParseObject::None => unreachable!(),
         };
         self.limit = new_limit;
         self.object = new_object;
@@ -442,7 +469,7 @@ impl<'a, const STACK_DEPTH: usize> ResumeableParse<'a, STACK_DEPTH> {
             state: MaybeUninit::new(ResumeableState {
                 limit,
                 object,
-                overrun: 0,
+                overrun: SLOP_SIZE as isize,
             }),
             patch_buffer: [0; SLOP_SIZE * 2],
             stack: Default::default(),
@@ -456,12 +483,16 @@ impl<'a, const STACK_DEPTH: usize> ResumeableParse<'a, STACK_DEPTH> {
 
     #[must_use]
     pub fn finish(self) -> bool {
-        let ResumeableParse { state, patch_buffer, mut stack } = self;
+        let ResumeableParse {
+            state,
+            patch_buffer,
+            mut stack,
+        } = self;
         let state = unsafe { state.assume_init() };
         let Some(state) = state.go_parse(&patch_buffer[..SLOP_SIZE], &mut stack) else {
             return false;
         };
-        state.overrun == 0 && matches!(state.object, ParseObject::None)
+        state.overrun == 0 && matches!(state.object, ParseObject::Message(_, _)) && stack.is_empty()
     }
 
     fn resume_impl(&mut self, buf: &[u8]) -> Option<()> {
@@ -479,53 +510,5 @@ impl<'a, const STACK_DEPTH: usize> ResumeableParse<'a, STACK_DEPTH> {
         }
         self.state.write(state);
         Some(())
-    }
-
-}
-
-#[cfg(test)]
-mod tests {
-    use std::mem::offset_of;
-
-    use crate::test;
-
-    use super::*;
-
-
-    const BUFFER: [u8; 38] =  [
-        // x varint 0
-        0o10, 1,
-        // y fixed 64, 2  
-        0o21, 2, 0, 0, 0, 0, 0, 0, 0,  
-        // z length delimted 11
-        0o32, 21, b'H', b'e', b'l',  b'l', b'o', b' ', b'W', b'o', b'r', b'l', b'd', b'!', b'1', b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9',  
-        // child is length delimited 34
-        0o42, 2, 0o10, 2
-    ];
-
-    #[test]
-    fn test_resumeable_parse() {
-        let mut test = test::Test::default();
-
-        assert!(parse_flat::<100>(&mut test, &BUFFER));
-
-        println!("{:?} {:?}", &test, test.child1());
-        std::mem::forget(test);
-    }
-
-    #[test]
-    fn test_resumeable_encode() {
-        let mut test = test::Test::default();
-
-        test.set_x(1);
-        test.set_y(2);
-        test.set_z(b"Hello World!123456789");
-        let child = test.child1_mut();
-        child.set_x(2);
-
-        let mut buffer = [0u8; 64];
-
-        let written = crate::encoding::encode_flat::<100>(&test, &mut buffer).unwrap();
-        assert_eq!(written, &BUFFER);
     }
 }

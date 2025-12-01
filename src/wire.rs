@@ -1,4 +1,7 @@
-use std::{ops::{Add, AddAssign, Index, IndexMut, Sub}, ptr::NonNull};
+use std::{
+    ops::{Add, AddAssign, Index, IndexMut, Sub},
+    ptr::NonNull,
+};
 
 pub(crate) const SLOP_SIZE: usize = 16;
 
@@ -11,7 +14,7 @@ pub fn zigzag_encode(n: i64) -> u64 {
 }
 
 #[derive(Clone, Copy)]
-pub struct ReadCursor(NonNull<u8>);
+pub struct ReadCursor(pub NonNull<u8>);
 
 impl ReadCursor {
     pub fn new(buffer: &[u8]) -> (Self, NonNull<u8>) {
@@ -174,8 +177,8 @@ impl WriteCursor {
     }
 
     pub fn write_tag(&mut self, tag: u32) {
-        self.write_unaligned(tag);
-        *self += (tag & 0xFF) as isize;
+        // TODO optimize
+        self.write_varint(tag as u64);
     }
 }
 
@@ -223,4 +226,3 @@ impl IndexMut<isize> for WriteCursor {
         unsafe { &mut *self.0.as_ptr().offset(index) }
     }
 }
-

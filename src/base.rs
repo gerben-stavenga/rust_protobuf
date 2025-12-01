@@ -4,7 +4,7 @@ pub struct Object;
 
 impl Object {
     pub fn create(size: u32) -> &'static mut Object {
-        let buffer = vec![0u64; (size as usize + 7) / 8].leak(); 
+        let buffer = vec![0u64; (size as usize + 7) / 8].leak();
         unsafe { &mut *(buffer as *mut [u64] as *mut Object) }
     }
 
@@ -25,9 +25,9 @@ impl Object {
     }
 
     pub(crate) fn ref_at<T>(&self, offset: usize) -> &T {
-        unsafe { &*( (self as *const Self as *const u8).add(offset) as *const T ) }
+        unsafe { &*((self as *const Self as *const u8).add(offset) as *const T) }
     }
-    
+
     pub(crate) fn ref_mut<T>(&mut self, offset: u32) -> &mut T {
         unsafe { &mut *((self as *mut Object as *mut u8).add(offset as usize) as *mut T) }
     }
@@ -81,4 +81,3 @@ impl Object {
         field.last_mut().unwrap()
     }
 }
-

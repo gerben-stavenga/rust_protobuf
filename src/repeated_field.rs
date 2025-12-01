@@ -29,7 +29,7 @@ impl RawVec {
     }
 
     #[inline(never)]
-    fn grow(mut self, new_cap: usize, layout: Layout) -> Self{
+    fn grow(mut self, new_cap: usize, layout: Layout) -> Self {
         // since we set the capacity to usize::MAX when T has size 0,
         // getting to here necessarily means the Vec is overfull.
         assert!(layout.size() != 0, "capacity overflow");
@@ -49,7 +49,8 @@ impl RawVec {
                 new_cap
             };
 
-            let new_layout = Layout::from_size_align(layout.size() * new_cap, layout.align()).unwrap();
+            let new_layout =
+                Layout::from_size_align(layout.size() * new_cap, layout.align()).unwrap();
 
             (new_cap, new_layout)
         };
@@ -63,7 +64,8 @@ impl RawVec {
         let new_ptr = if self.cap == 0 {
             unsafe { alloc::alloc(new_layout) }
         } else {
-            let old_layout = Layout::from_size_align(layout.size() * self.cap, layout.align()).unwrap();
+            let old_layout =
+                Layout::from_size_align(layout.size() * self.cap, layout.align()).unwrap();
             let old_ptr = self.ptr;
             unsafe { alloc::realloc(old_ptr, old_layout, new_layout.size()) }
         };
@@ -111,11 +113,9 @@ impl RawVec {
     fn drop(self, layout: Layout) {
         if self.cap != 0 && layout.size() != 0 {
             unsafe {
-                let layout = Layout::from_size_align_unchecked(layout.size() * self.cap, layout.align());
-                alloc::dealloc(
-                    self.ptr,
-                    layout,
-                );
+                let layout =
+                    Layout::from_size_align_unchecked(layout.size() * self.cap, layout.align());
+                alloc::dealloc(self.ptr, layout);
             }
         }
     }
@@ -130,14 +130,18 @@ pub struct RepeatedField<T> {
 impl<T> Default for RepeatedField<T> {
     fn default() -> Self {
         RepeatedField {
-            buf: if std::mem::size_of::<T>() == 0 { RawVec::new_zst() } else { RawVec::new() },
+            buf: if std::mem::size_of::<T>() == 0 {
+                RawVec::new_zst()
+            } else {
+                RawVec::new()
+            },
             len: 0,
             phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<T> Debug for RepeatedField<T> 
+impl<T> Debug for RepeatedField<T>
 where
     T: Debug,
 {
@@ -159,7 +163,7 @@ impl<T> RepeatedField<T> {
         Self::default()
     }
 
-    pub fn from_slice(slice: &[T]) -> Self 
+    pub fn from_slice(slice: &[T]) -> Self
     where
         T: Copy,
     {
@@ -185,14 +189,19 @@ impl<T> RepeatedField<T> {
     }
 
     pub fn push(&mut self, elem: T) {
-        unsafe { 
-            (self.buf.push_uninitialized(&mut self.len, Layout::new::<T>()) as *mut T).write(elem) 
+        unsafe {
+            (self
+                .buf
+                .push_uninitialized(&mut self.len, Layout::new::<T>()) as *mut T)
+                .write(elem)
         };
     }
 
     pub fn pop(&mut self) -> Option<T> {
         unsafe {
-            self.buf.pop(&mut self.len, Layout::new::<T>()).map(|ptr| ptr.cast::<T>().read())
+            self.buf
+                .pop(&mut self.len, Layout::new::<T>())
+                .map(|ptr| ptr.cast::<T>().read())
         }
     }
 
@@ -256,7 +265,7 @@ impl<T> RepeatedField<T> {
         self.buf.reserve(new_cap, Layout::new::<T>());
     }
 
-    pub fn assign(&mut self, slice: &[T]) 
+    pub fn assign(&mut self, slice: &[T])
     where
         T: Copy,
     {
@@ -264,14 +273,16 @@ impl<T> RepeatedField<T> {
         self.append(slice);
     }
 
-    pub fn append(&mut self, slice: &[T]) 
+    pub fn append(&mut self, slice: &[T])
     where
         T: Copy,
     {
         let old_len = self.len;
         self.reserve(old_len + slice.len());
         unsafe {
-            self.ptr().add(old_len).copy_from_nonoverlapping(slice.as_ptr(), slice.len());
+            self.ptr()
+                .add(old_len)
+                .copy_from_nonoverlapping(slice.as_ptr(), slice.len());
         }
         self.len = old_len + slice.len();
     }
@@ -303,16 +314,11 @@ impl<T> IntoIterator for RepeatedField<T> {
     type Item = T;
     type IntoIter = IntoIter<T>;
     fn into_iter(self) -> IntoIter<T> {
-        let (iter, buf) = unsafe {
-            (RawValIter::new(&self), ptr::read(&self.buf))
-        };
+        let (iter, buf) = unsafe { (RawValIter::new(&self), ptr::read(&self.buf)) };
 
         mem::forget(self);
 
-        IntoIter {
-            iter,
-            buf,
-        }
+        IntoIter { iter, buf }
     }
 }
 
@@ -357,8 +363,8 @@ impl<T> Iterator for RawValIter<T> {
 
     fn size_hint(&self) -> (usize, Option<usize>) {
         let elem_size = mem::size_of::<T>();
-        let len = (self.end as usize - self.start as usize)
-                  / if elem_size == 0 { 1 } else { elem_size };
+        let len =
+            (self.end as usize - self.start as usize) / if elem_size == 0 { 1 } else { elem_size };
         (len, Some(len))
     }
 }

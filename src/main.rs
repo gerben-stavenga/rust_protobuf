@@ -12,7 +12,11 @@ fn rust_qualified_name(name: &str) -> String {
     name.replace('.', "::")
 }
 
-fn rust_primitive_type(field: &protobuf_parser::Field, proto_path: &[String], field_name: &str) -> String {
+fn rust_primitive_type(
+    field: &protobuf_parser::Field,
+    proto_path: &[String],
+    field_name: &str,
+) -> String {
     match &field.typ {
         protobuf_parser::FieldType::Double => "f64".to_string(),
         protobuf_parser::FieldType::Float => "f32".to_string(),
@@ -27,7 +31,9 @@ fn rust_primitive_type(field: &protobuf_parser::Field, proto_path: &[String], fi
         protobuf_parser::FieldType::Sfixed32 => "i32".to_string(),
         protobuf_parser::FieldType::Sfixed64 => "i64".to_string(),
         protobuf_parser::FieldType::Bool => "bool".to_string(),
-        protobuf_parser::FieldType::String | protobuf_parser::FieldType::Bytes => "protobuf::repeated_field::Bytes".to_string(),
+        protobuf_parser::FieldType::String | protobuf_parser::FieldType::Bytes => {
+            "protobuf::repeated_field::Bytes".to_string()
+        }
         protobuf_parser::FieldType::Group(_) => rust_group_name(proto_path, field_name),
         protobuf_parser::FieldType::Map(_) => panic!("Map types not supported"),
         protobuf_parser::FieldType::MessageOrEnum(name) => rust_qualified_name(&name),
@@ -38,7 +44,9 @@ fn rust_field_type(field: &protobuf_parser::Field, proto_path: &[String]) -> Str
     let base_type = rust_primitive_type(field, proto_path, &field.name);
     match field.rule {
         protobuf_parser::Rule::Optional | protobuf_parser::Rule::Required => base_type,
-        protobuf_parser::Rule::Repeated => format!("protobuf::repeated_field::RepeatedField<{}>", base_type),
+        protobuf_parser::Rule::Repeated => {
+            format!("protobuf::repeated_field::RepeatedField<{}>", base_type)
+        }
     }
 }
 
@@ -46,7 +54,11 @@ fn generate_message_code(message: &protobuf_parser::Message, proto_path: &mut Ve
     proto_path.push(message.name.clone());
     println!("pub struct {} {{", message.name);
     for field in &message.fields {
-        println!("    {}: {},", field.name, rust_field_type(field, &proto_path));
+        println!(
+            "    {}: {},",
+            field.name,
+            rust_field_type(field, &proto_path)
+        );
     }
     println!("}}\n");
 
@@ -58,7 +70,10 @@ fn generate_message_code(message: &protobuf_parser::Message, proto_path: &mut Ve
                 println!("    pub fn {}(&self) -> {} {{", field.name, rust_type);
                 println!("        self.{}", field.name);
                 println!("    }}\n");
-                println!("    pub fn set_{}(&mut self, value: {}) {{", field.name, rust_type);
+                println!(
+                    "    pub fn set_{}(&mut self, value: {}) {{",
+                    field.name, rust_type
+                );
                 println!("        self.{} = value;", field.name);
                 println!("    }}\n");
             }
@@ -68,16 +83,28 @@ fn generate_message_code(message: &protobuf_parser::Message, proto_path: &mut Ve
                 println!("    pub fn {}(&self) -> &[{}] {{", field.name, base_type);
                 println!("        &self.{}", field.name);
                 println!("    }}\n");
-                println!("    pub fn {}_mut(&mut self) -> &mut [{}] {{", field.name, base_type);
+                println!(
+                    "    pub fn {}_mut(&mut self) -> &mut [{}] {{",
+                    field.name, base_type
+                );
                 println!("        &mut self.{}", field.name);
                 println!("    }}\n");
-                println!("    pub fn add_{}(&mut self, value: {}) {{", field.name, base_type);
+                println!(
+                    "    pub fn add_{}(&mut self, value: {}) {{",
+                    field.name, base_type
+                );
                 println!("        self.{}.push(value);", field.name);
                 println!("    }}\n");
-                println!("    pub fn pop_{}(&mut self) -> Option<{}> {{", field.name, base_type);
+                println!(
+                    "    pub fn pop_{}(&mut self) -> Option<{}> {{",
+                    field.name, base_type
+                );
                 println!("        self.{}.pop()", field.name);
                 println!("    }}\n");
-                println!("    pub fn remove_{}(&mut self, index: usize) {{", field.name);
+                println!(
+                    "    pub fn remove_{}(&mut self, index: usize) {{",
+                    field.name
+                );
                 println!("        self.{}.remove(index);", field.name);
                 println!("    }}\n");
             }
