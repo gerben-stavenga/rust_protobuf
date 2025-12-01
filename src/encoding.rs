@@ -3,10 +3,9 @@ use std::{mem::MaybeUninit, ptr::NonNull};
 use crate::{
     Protobuf,
     base::Object,
-    decoding::FieldKind,
     repeated_field::{Bytes, RepeatedField},
     utils::{Stack, StackWithStorage},
-    wire::{SLOP_SIZE, WriteCursor, zigzag_encode},
+    wire::{FieldKind, SLOP_SIZE, WriteCursor, zigzag_encode},
 };
 
 #[repr(C)]
@@ -262,106 +261,107 @@ fn encode_loop<'a>(
                     ctx.table = child_table;
                     ctx.index = 0;
                 }
-            }
-            FieldKind::RepeatedVarint64 => {
-                for &val in ctx.obj.ref_at::<RepeatedField<u64>>(offset).as_ref() {
-                    if cursor <= begin {
-                        break;
-                    }
-                    cursor.write_varint(val);
-                    cursor.write_tag(tag);
-                }
-            }
-            FieldKind::RepeatedVarint32 => {
-                for &val in ctx.obj.ref_at::<RepeatedField<u32>>(offset).as_ref() {
-                    if cursor <= begin {
-                        break;
-                    }
-                    cursor.write_varint(val as u64);
-                    cursor.write_tag(tag);
-                }
-            }
-            FieldKind::RepeatedVarint64Zigzag => {
-                for &val in ctx.obj.ref_at::<RepeatedField<i64>>(offset).as_ref() {
-                    if cursor <= begin {
-                        break;
-                    }
-                    cursor.write_varint(zigzag_encode(val));
-                    cursor.write_tag(tag);
-                }
-            }
-            FieldKind::RepeatedVarint32Zigzag => {
-                for &val in ctx.obj.ref_at::<RepeatedField<i32>>(offset).as_ref() {
-                    if cursor <= begin {
-                        break;
-                    }
-                    cursor.write_varint(zigzag_encode(val as i64));
-                    cursor.write_tag(tag);
-                }
-            }
-            FieldKind::RepeatedFixed64 => {
-                for &val in ctx.obj.ref_at::<RepeatedField<u64>>(offset).as_ref() {
-                    if cursor <= begin {
-                        break;
-                    }
-                    cursor.write_unaligned(val);
-                    cursor.write_tag(tag);
-                }
-            }
-            FieldKind::RepeatedFixed32 => {
-                for &val in ctx.obj.ref_at::<RepeatedField<u32>>(offset).as_ref() {
-                    if cursor <= begin {
-                        break;
-                    }
-                    cursor.write_unaligned(val);
-                    cursor.write_tag(tag);
-                }
-            }
-            FieldKind::RepeatedBytes => {
-                for bytes in ctx.obj.ref_at::<RepeatedField<Bytes>>(offset).as_ref() {
-                    if cursor <= begin {
-                        break;
-                    }
-                    if cursor - begin + (bytes.len() as isize) > SLOP_SIZE as isize {
-                        unimplemented!();
-                    }
-                    cursor.write_slice(bytes);
-                    cursor.write_varint(bytes.len() as u64);
-                    cursor.write_tag(tag);
-                }
-            }
-            FieldKind::RepeatedMessage => {
-                let (offset, child_table) = aux_entry(offset, ctx.table);
-                for &message_ptr in ctx
-                    .obj
-                    .ref_at::<RepeatedField<*const Object>>(offset)
-                    .as_ref()
-                {
-                    ctx.push(tag, count(cursor, begin, byte_count), stack)?;
-                    ctx.obj = unsafe { &*message_ptr };
-                    ctx.table = child_table;
-                    ctx.index = 0;
-                }
-            }
-            FieldKind::RepeatedGroup => {
-                let (offset, child_table) = aux_entry(offset, ctx.table);
-                for &message_ptr in ctx
-                    .obj
-                    .ref_at::<RepeatedField<*const Object>>(offset)
-                    .as_ref()
-                {
-                    if cursor <= begin {
-                        break;
-                    }
-                    let mut end_tag = tag;
-                    end_tag += 1 << 24; // Set wire type to END_GROUP
-                    cursor.write_tag(end_tag);
-                    ctx.push(tag, -1, stack)?;
-                    ctx.obj = unsafe { &*message_ptr };
-                    ctx.table = child_table;
-                    ctx.index = 0;
-                }
-            }
+            } /*
+                          FieldKind::RepeatedVarint64 => {
+                              for &val in ctx.obj.ref_at::<RepeatedField<u64>>(offset).as_ref() {
+                                  if cursor <= begin {
+                                      break;
+                                  }
+                                  cursor.write_varint(val);
+                                  cursor.write_tag(tag);
+                              }
+                          }
+                          FieldKind::RepeatedVarint32 => {
+                              for &val in ctx.obj.ref_at::<RepeatedField<u32>>(offset).as_ref() {
+                                  if cursor <= begin {
+                                      break;
+                                  }
+                                  cursor.write_varint(val as u64);
+                                  cursor.write_tag(tag);
+                              }
+                          }
+                          FieldKind::RepeatedVarint64Zigzag => {
+                              for &val in ctx.obj.ref_at::<RepeatedField<i64>>(offset).as_ref() {
+                                  if cursor <= begin {
+                                      break;
+                                  }
+                                  cursor.write_varint(zigzag_encode(val));
+                                  cursor.write_tag(tag);
+                              }
+                          }
+                          FieldKind::RepeatedVarint32Zigzag => {
+                              for &val in ctx.obj.ref_at::<RepeatedField<i32>>(offset).as_ref() {
+                                  if cursor <= begin {
+                                      break;
+                                  }
+                                  cursor.write_varint(zigzag_encode(val as i64));
+                                  cursor.write_tag(tag);
+                              }
+                          }
+                          FieldKind::RepeatedFixed64 => {
+                              for &val in ctx.obj.ref_at::<RepeatedField<u64>>(offset).as_ref() {
+                                  if cursor <= begin {
+                                      break;
+                                  }
+                                  cursor.write_unaligned(val);
+                                  cursor.write_tag(tag);
+                              }
+                          }
+                          FieldKind::RepeatedFixed32 => {
+                              for &val in ctx.obj.ref_at::<RepeatedField<u32>>(offset).as_ref() {
+                                  if cursor <= begin {
+                                      break;
+                                  }
+                                  cursor.write_unaligned(val);
+                                  cursor.write_tag(tag);
+                              }
+                          }
+                          FieldKind::RepeatedBytes => {
+                              for bytes in ctx.obj.ref_at::<RepeatedField<Bytes>>(offset).as_ref() {
+                                  if cursor <= begin {
+                                      break;
+                                  }
+                                  if cursor - begin + (bytes.len() as isize) > SLOP_SIZE as isize {
+                                      unimplemented!();
+                                  }
+                                  cursor.write_slice(bytes);
+                                  cursor.write_varint(bytes.len() as u64);
+                                  cursor.write_tag(tag);
+                              }
+                          }
+                          FieldKind::RepeatedMessage => {
+                              let (offset, child_table) = aux_entry(offset, ctx.table);
+                              for &message_ptr in ctx
+                                  .obj
+                                  .ref_at::<RepeatedField<*const Object>>(offset)
+                                  .as_ref()
+                              {
+                                  ctx.push(tag, count(cursor, begin, byte_count), stack)?;
+                                  ctx.obj = unsafe { &*message_ptr };
+                                  ctx.table = child_table;
+                                  ctx.index = 0;
+                              }
+                          }
+                          FieldKind::RepeatedGroup => {
+                              let (offset, child_table) = aux_entry(offset, ctx.table);
+                              for &message_ptr in ctx
+                                  .obj
+                                  .ref_at::<RepeatedField<*const Object>>(offset)
+                                  .as_ref()
+                              {
+                                  if cursor <= begin {
+                                      break;
+                                  }
+                                  let mut end_tag = tag;
+                                  end_tag += 1 << 24; // Set wire type to END_GROUP
+                                  cursor.write_tag(end_tag);
+                                  ctx.push(tag, -1, stack)?;
+                                  ctx.obj = unsafe { &*message_ptr };
+                                  ctx.table = child_table;
+                                  ctx.index = 0;
+                              }
+                          }
+              */
         }
     }
     Some((cursor, EncodeObject::Object(ctx.obj, ctx.table, ctx.index)))

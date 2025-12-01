@@ -11,16 +11,18 @@ pub(crate) struct Stack<T> {
 
 impl<T> Stack<T> {
     pub(crate) fn push(&mut self, entry: T) -> Option<&mut T> {
-        if self.sp == 0 {
+        let sp = *std::hint::black_box(&self.sp);
+        if sp == 0 {
             return None;
         }
-        self.sp -= 1;
-        let slot = &mut self.entries[self.sp];
+        let sp = sp - 1;
+        self.sp = sp;
+        let slot = &mut self.entries[sp];
         Some(slot.write(entry))
     }
 
     pub(crate) fn pop(&mut self) -> Option<T> {
-        let sp = self.sp;
+        let sp = *std::hint::black_box(&self.sp);
         if sp == self.entries.len() {
             return None;
         }

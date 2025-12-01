@@ -278,41 +278,41 @@ static DECODING_TABLE_$name$: protobuf::decoding::TableWithEntries<$num_entries$
                 switch (field->type()) {
                     case gp::FieldDescriptor::TYPE_INT32:
                     case gp::FieldDescriptor::TYPE_UINT32:
-                      field_kind = "protobuf::decoding::FieldKind::Varint32";
+                      field_kind = "protobuf::wire::FieldKind::Varint32";
                       break;
                     case gp::FieldDescriptor::TYPE_SINT32:
-                      field_kind = "protobuf::decoding::FieldKind::Varint32Zigzag";
+                      field_kind = "protobuf::wire::FieldKind::Varint32Zigzag";
                       break;
                     case gp::FieldDescriptor::TYPE_SFIXED32:
                     case gp::FieldDescriptor::TYPE_FLOAT:
                     case gp::FieldDescriptor::TYPE_FIXED32:
-                        field_kind = "protobuf::decoding::FieldKind::Fixed32";
+                        field_kind = "protobuf::wire::FieldKind::Fixed32";
                         break;
                     case gp::FieldDescriptor::TYPE_INT64:
                     case gp::FieldDescriptor::TYPE_UINT64:
-                        field_kind = "protobuf::decoding::FieldKind::Varint64";
+                        field_kind = "protobuf::wire::FieldKind::Varint64";
                         break;
                     case gp::FieldDescriptor::TYPE_SINT64:
-                        field_kind = "protobuf::decoding::FieldKind::Varint64Zigzag";
+                        field_kind = "protobuf::wire::FieldKind::Varint64Zigzag";
                         break;
                     case gp::FieldDescriptor::TYPE_SFIXED64:
                     case gp::FieldDescriptor::TYPE_DOUBLE:
                     case gp::FieldDescriptor::TYPE_FIXED64:
-                        field_kind = "protobuf::decoding::FieldKind::Fixed64";
+                        field_kind = "protobuf::wire::FieldKind::Fixed64";
                         break;
                     case gp::FieldDescriptor::TYPE_BOOL:
                         assert(false && "bool field kind not implemented yet");
                         break;
                     case gp::FieldDescriptor::TYPE_STRING:
                     case gp::FieldDescriptor::TYPE_BYTES:
-                        field_kind = "protobuf::decoding::FieldKind::Bytes";
+                        field_kind = "protobuf::wire::FieldKind::Bytes";
                         break;
                     case gp::FieldDescriptor::TYPE_MESSAGE:
-                        field_kind = "protobuf::decoding::FieldKind::Message";
+                        field_kind = "protobuf::wire::FieldKind::Message";
                         needs_aux = true;
                         break;
                     case gp::FieldDescriptor::TYPE_GROUP:
-                        field_kind = "protobuf::decoding::FieldKind::Group";
+                        field_kind = "protobuf::wire::FieldKind::Group";
                         needs_aux = true;
                         break;
                     case gp::FieldDescriptor::TYPE_ENUM:
@@ -337,7 +337,7 @@ static DECODING_TABLE_$name$: protobuf::decoding::TableWithEntries<$num_entries$
                 }
             }
         } else {
-            printer->Emit("protobuf::decoding::TableEntry {has_bit: 0, kind: protobuf::decoding::FieldKind::Unknown, offset: 0}, \n");
+            printer->Emit("protobuf::decoding::TableEntry {has_bit: 0, kind: protobuf::wire::FieldKind::Unknown, offset: 0}, \n");
         }
     }
     printer->Emit(R"rs(  ],
@@ -375,41 +375,41 @@ static ENCODING_TABLE_$name$: protobuf::encoding::TableWithEntries<$num_entries$
             switch (field->type()) {
                 case gp::FieldDescriptor::TYPE_INT32:
                 case gp::FieldDescriptor::TYPE_UINT32:
-                    field_kind = "protobuf::decoding::FieldKind::Varint32";
+                    field_kind = "protobuf::wire::FieldKind::Varint32";
                     break;
                 case gp::FieldDescriptor::TYPE_SINT32:
-                    field_kind = "protobuf::decoding::FieldKind::Varint32Zigzag";
+                    field_kind = "protobuf::wire::FieldKind::Varint32Zigzag";
                     break;
                 case gp::FieldDescriptor::TYPE_SFIXED32:
                 case gp::FieldDescriptor::TYPE_FLOAT:
                 case gp::FieldDescriptor::TYPE_FIXED32:
-                    field_kind = "protobuf::decoding::FieldKind::Fixed32";
+                    field_kind = "protobuf::wire::FieldKind::Fixed32";
                     break;
                 case gp::FieldDescriptor::TYPE_INT64:
                 case gp::FieldDescriptor::TYPE_UINT64:
-                    field_kind = "protobuf::decoding::FieldKind::Varint64";
+                    field_kind = "protobuf::wire::FieldKind::Varint64";
                     break;
                 case gp::FieldDescriptor::TYPE_SINT64:
-                    field_kind = "protobuf::decoding::FieldKind::Varint64Zigzag";
+                    field_kind = "protobuf::wire::FieldKind::Varint64Zigzag";
                     break;
                 case gp::FieldDescriptor::TYPE_SFIXED64:
                 case gp::FieldDescriptor::TYPE_DOUBLE:
                 case gp::FieldDescriptor::TYPE_FIXED64:
-                    field_kind = "protobuf::decoding::FieldKind::Fixed64";
+                    field_kind = "protobuf::wire::FieldKind::Fixed64";
                     break;
                 case gp::FieldDescriptor::TYPE_BOOL:
                     assert(false && "bool field kind not implemented yet");
                     break;
                 case gp::FieldDescriptor::TYPE_STRING:
                 case gp::FieldDescriptor::TYPE_BYTES:
-                    field_kind = "protobuf::decoding::FieldKind::Bytes";
+                    field_kind = "protobuf::wire::FieldKind::Bytes";
                     break;
                 case gp::FieldDescriptor::TYPE_MESSAGE:
-                    field_kind = "protobuf::decoding::FieldKind::Message";
+                    field_kind = "protobuf::wire::FieldKind::Message";
                     needs_aux = true;
                     break;
                 case gp::FieldDescriptor::TYPE_GROUP:
-                    field_kind = "protobuf::decoding::FieldKind::Group";
+                    field_kind = "protobuf::wire::FieldKind::Group";
                     needs_aux = true;
                     break;
                 case gp::FieldDescriptor::TYPE_ENUM:

@@ -16,6 +16,63 @@ pub fn zigzag_encode(n: i64) -> u64 {
 #[derive(Clone, Copy)]
 pub struct ReadCursor(pub NonNull<u8>);
 
+#[inline(never)]
+fn read_varint(ptr: *const u8) -> (*const u8, u64) {
+    let mut result = 0;
+    let mut extra = 0;
+    for i in 0..10 {
+        let b = unsafe { *ptr.add(i) };
+        if i == 9 && b != 1 {
+            break;
+        }
+        result ^= (b as u64) << (7 * i);
+        if b < 0x80 {
+            let new_ptr = unsafe { ptr.add(i + 1) };
+            return (new_ptr, result ^ extra);
+        }
+        extra ^= 0x80 << (7 * i);
+    }
+    (std::ptr::null(), 0)
+}
+
+#[inline(never)]
+fn read_tag(ptr: *const u8) -> (*const u8, u32) {
+    let mut result = 0;
+    let mut extra = 0;
+    for i in 0..5 {
+        let b = unsafe { *ptr.add(i) };
+        if i == 4 && (b == 0 || b > 15) {
+            break;
+        }
+        result ^= (b as u32) << (7 * i);
+        if b < 0x80 {
+            let new_ptr = unsafe { ptr.add(i + 1) };
+            return (new_ptr, result ^ extra);
+        }
+        extra ^= 0x80 << (7 * i);
+    }
+    (std::ptr::null(), 0)
+}
+
+#[inline(never)]
+fn read_size(ptr: *const u8) -> (*const u8, isize) {
+    let mut result = 0;
+    let mut extra = 0;
+    for i in 0..5 {
+        let b = unsafe { *ptr.add(i) };
+        if i == 4 && (b == 0 || b > 7) {
+            break;
+        }
+        result ^= (b as isize) << (7 * i);
+        if b < 0x80 {
+            let new_ptr = unsafe { ptr.add(i + 1) };
+            return (new_ptr, result ^ extra);
+        }
+        extra ^= 0x80 << (7 * i);
+    }
+    (std::ptr::null(), 0)
+}
+
 impl ReadCursor {
     pub fn new(buffer: &[u8]) -> (Self, NonNull<u8>) {
         let ptr = ReadCursor(NonNull::from_ref(&buffer[0]));
@@ -24,58 +81,49 @@ impl ReadCursor {
     }
 
     pub fn read_varint(&mut self) -> Option<u64> {
-        let mut result = 0;
-        let mut extra = 0;
-        for i in 0..10 {
-            let b = self[i];
-            if i == 9 && b != 1 {
+        let res = self[0] as u64;
+        if std::hint::likely(res < 0x80) {
+            *self += 1;
+            return Some(res);
+        } else {
+            let (new_ptr, value) = read_varint(self.0.as_ptr());
+            if new_ptr.is_null() {
                 return None;
             }
-            result ^= (b as u64) << (7 * i);
-            if b < 0x80 {
-                *self += i + 1;
-                return Some(result ^ extra);
-            }
-            extra ^= 0x80 << (7 * i);
+            self.0 = unsafe { NonNull::new_unchecked(new_ptr as *mut u8) };
+            return Some(value);
         }
-        None
     }
 
     pub fn read_tag(&mut self) -> Option<u32> {
-        let mut result = 0;
-        let mut extra = 0;
-        for i in 0..5 {
-            let b = self[i];
-            if i == 4 && (b == 0 || b > 15) {
+        let res = self[0] as u32;
+        if std::hint::likely(res < 0x80) {
+            *self += 1;
+            return Some(res);
+        } else {
+            let (new_ptr, value) = read_tag(self.0.as_ptr());
+            if new_ptr.is_null() {
                 return None;
             }
-            result ^= (b as u32) << (7 * i);
-            if b < 0x80 {
-                *self += i + 1;
-                return Some(result ^ extra);
-            }
-            extra ^= 0x80 << (7 * i);
+            self.0 = unsafe { NonNull::new_unchecked(new_ptr as *mut u8) };
+            return Some(value);
         }
-        None
     }
 
     // Reads a isize varint limited to i32::MAX (used for lengths)
     pub fn read_size(&mut self) -> Option<isize> {
-        let mut result = 0;
-        let mut extra = 0;
-        for i in 0..5 {
-            let b = self[i];
-            if i == 4 && (b == 0 || b > 7) {
+        let res = self[0] as isize;
+        if std::hint::likely(res < 0x80) {
+            *self += 1;
+            return Some(res);
+        } else {
+            let (new_ptr, value) = read_size(self.0.as_ptr());
+            if new_ptr.is_null() {
                 return None;
             }
-            result ^= (b as isize) << (7 * i);
-            if b < 0x80 {
-                *self += i + 1;
-                return Some(result ^ extra);
-            }
-            extra ^= 0x80 << (7 * i);
+            self.0 = unsafe { NonNull::new_unchecked(new_ptr as *mut u8) };
+            return Some(value);
         }
-        None
     }
 
     pub fn read_unaligned<T>(&mut self) -> T {
@@ -225,4 +273,30 @@ impl IndexMut<isize> for WriteCursor {
     fn index_mut(&mut self, index: isize) -> &mut Self::Output {
         unsafe { &mut *self.0.as_ptr().offset(index) }
     }
+}
+
+#[repr(u8)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum FieldKind {
+    Unknown,
+    Varint64,
+    Varint32,
+    Varint64Zigzag,
+    Varint32Zigzag,
+    Fixed64,
+    Fixed32,
+    Bytes,
+    Message,
+    Group,
+    /*
+        RepeatedVarint64,
+        RepeatedVarint32,
+        RepeatedVarint64Zigzag,
+        RepeatedVarint32Zigzag,
+        RepeatedFixed64,
+        RepeatedFixed32,
+        RepeatedBytes,
+        RepeatedMessage,
+        RepeatedGroup,
+    */
 }

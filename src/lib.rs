@@ -1,3 +1,5 @@
+#![feature(likely_unlikely)]
+
 pub mod base;
 pub mod decoding;
 pub mod encoding;
