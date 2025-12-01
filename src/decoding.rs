@@ -167,6 +167,10 @@ impl<'a> ParseContext<'a> {
     fn set<T>(&mut self, entry: TableEntryBits, val: T) {
         self.obj.set(entry.offset(), entry.has_bit_idx(), val);
     }
+
+    fn add<T>(&mut self, entry: TableEntryBits, val: T) {
+        self.obj.add(entry.offset(), val);
+    }
 }
 
 impl Object {
@@ -337,90 +341,91 @@ fn parse_loop<'a>(
                             let aux_entry = ctx.table.aux_entry(entry.offset());
                             ctx.push_group(field_number, stack)?;
                             (ctx.obj, ctx.table) = ctx.obj.get_or_create_child_object(aux_entry);
-                        } /*                 FieldKind::RepeatedVarint64 => {
-                              // varint64
-                              if !validate_wire_type(tag, 0) {
-                                  break 'unknown;
-                              }
-                              let value = cursor.read_varint()?;
-                              ctx.obj.add(offset, value);
-                          }
-                          FieldKind::RepeatedVarint32 => {
-                              // varint32
-                              if !validate_wire_type(tag, 0) {
-                                  break 'unknown;
-                              }
-                              let value = cursor.read_varint()?;
-                              ctx.obj.add(offset, value as u32);
-                          }
-                          FieldKind::RepeatedVarint64Zigzag => {
-                              // varint64 zigzag
-                              if !validate_wire_type(tag, 0) {
-                                  break 'unknown;
-                              }
-                              let value = cursor.read_varint()?;
-                              ctx.obj.add(offset, zigzag_decode(value));
-                          }
-                          FieldKind::RepeatedVarint32Zigzag => {
-                              // varint32 zigzag
-                              if !validate_wire_type(tag, 0) {
-                                  break 'unknown;
-                              }
-                              let value = cursor.read_varint()?;
-                              ctx.obj.add(offset, zigzag_decode(value) as u32);
-                          }
-                          FieldKind::RepeatedFixed64 => {
-                              // fixed64
-                              if !validate_wire_type(tag, 1) {
-                                  break 'unknown;
-                              }
-                              let value = cursor.read_unaligned::<u64>();
-                              ctx.obj.add(offset, value);
-                          }
-                          FieldKind::RepeatedFixed32 => {
-                              // fixed32
-                              if !validate_wire_type(tag, 5) {
-                                  break 'unknown;
-                              }
-                              let value = cursor.read_unaligned::<u32>();
-                              ctx.obj.add(offset, value);
-                          }
-                          FieldKind::RepeatedBytes => {
-                              // bytes
-                              if !validate_wire_type(tag, 2) {
-                                  break 'unknown;
-                              }
-                              let len = cursor.read_size()?;
-                              if cursor - limited_end + len <= SLOP_SIZE as isize {
-                                  ctx.obj.add_bytes(offset, cursor.read_slice(len));
-                              } else {
-                                  ctx.push_limit(len, cursor, end, stack)?;
-                                  let bytes = ctx.obj.add_bytes(
-                                      offset,
-                                      cursor.read_slice(SLOP_SIZE as isize - (cursor - end)),
-                                  );
-                                  return Some((cursor, ctx.limit, ParseObject::Bytes(bytes)));
-                              }
-                          }
-                          FieldKind::RepeatedMessage => {
-                              // message
-                              if !validate_wire_type(tag, 2) {
-                                  break 'unknown;
-                              }
-                              let len = cursor.read_size()?;
-                              let aux_entry = ctx.table.aux_entry(offset);
-                              limited_end = ctx.push_limit(len, cursor, end, stack)?;
-                              (ctx.obj, ctx.table) = ctx.obj.add_child_object(aux_entry);
-                          }
-                          FieldKind::RepeatedGroup => {
-                              // start group
-                              if !validate_wire_type(tag, 3) {
-                                  break 'unknown;
-                              }
-                              let aux_entry = ctx.table.aux_entry(offset);
-                              ctx.push_group(field_number, stack)?;
-                              (ctx.obj, ctx.table) = ctx.obj.add_child_object(aux_entry);
-                          }*/
+                        }
+                        FieldKind::RepeatedVarint64 => {
+                            // varint64
+                            if !validate_wire_type(tag, 0) {
+                                break 'unknown;
+                            }
+                            let value = cursor.read_varint()?;
+                            ctx.add(entry, value);
+                        }
+                        FieldKind::RepeatedVarint32 => {
+                            // varint32
+                            if !validate_wire_type(tag, 0) {
+                                break 'unknown;
+                            }
+                            let value = cursor.read_varint()?;
+                            ctx.add(entry, value as u32);
+                        }
+                        FieldKind::RepeatedVarint64Zigzag => {
+                            // varint64 zigzag
+                            if !validate_wire_type(tag, 0) {
+                                break 'unknown;
+                            }
+                            let value = cursor.read_varint()?;
+                            ctx.add(entry, zigzag_decode(value));
+                        }
+                        FieldKind::RepeatedVarint32Zigzag => {
+                            // varint32 zigzag
+                            if !validate_wire_type(tag, 0) {
+                                break 'unknown;
+                            }
+                            let value = cursor.read_varint()?;
+                            ctx.add(entry, zigzag_decode(value) as u32);
+                        }
+                        FieldKind::RepeatedFixed64 => {
+                            // fixed64
+                            if !validate_wire_type(tag, 1) {
+                                break 'unknown;
+                            }
+                            let value = cursor.read_unaligned::<u64>();
+                            ctx.add(entry, value);
+                        }
+                        FieldKind::RepeatedFixed32 => {
+                            // fixed32
+                            if !validate_wire_type(tag, 5) {
+                                break 'unknown;
+                            }
+                            let value = cursor.read_unaligned::<u32>();
+                            ctx.add(entry, value);
+                        }
+                        FieldKind::RepeatedBytes => {
+                            // bytes
+                            if !validate_wire_type(tag, 2) {
+                                break 'unknown;
+                            }
+                            let len = cursor.read_size()?;
+                            if cursor - limited_end + len <= SLOP_SIZE as isize {
+                                ctx.obj.add_bytes(entry.offset(), cursor.read_slice(len));
+                            } else {
+                                ctx.push_limit(len, cursor, end, stack)?;
+                                let bytes = ctx.obj.add_bytes(
+                                    entry.offset(),
+                                    cursor.read_slice(SLOP_SIZE as isize - (cursor - end)),
+                                );
+                                return Some((cursor, ctx.limit, ParseObject::Bytes(bytes)));
+                            }
+                        }
+                        FieldKind::RepeatedMessage => {
+                            // message
+                            if !validate_wire_type(tag, 2) {
+                                break 'unknown;
+                            }
+                            let len = cursor.read_size()?;
+                            let aux_entry = ctx.table.aux_entry(entry.offset());
+                            limited_end = ctx.push_limit(len, cursor, end, stack)?;
+                            (ctx.obj, ctx.table) = ctx.obj.add_child_object(aux_entry);
+                        }
+                        FieldKind::RepeatedGroup => {
+                            // start group
+                            if !validate_wire_type(tag, 3) {
+                                break 'unknown;
+                            }
+                            let aux_entry = ctx.table.aux_entry(entry.offset());
+                            ctx.push_group(field_number, stack)?;
+                            (ctx.obj, ctx.table) = ctx.obj.add_child_object(aux_entry);
+                        }
                     }
                     continue 'parse_loop;
                 }

@@ -8,22 +8,6 @@ impl Object {
         unsafe { &mut *(buffer as *mut [u64] as *mut Object) }
     }
 
-    pub(crate) fn cast<T>(&self) -> &T {
-        unsafe { &*(self as *const Object as *const T) }
-    }
-
-    pub(crate) fn cast_mut<T>(&mut self) -> &mut T {
-        unsafe { &mut *(self as *mut Object as *mut T) }
-    }
-
-    pub(crate) fn cast_from<T>(value: &T) -> &Object {
-        unsafe { &*(value as *const T as *const Object) }
-    }
-
-    pub(crate) fn cast_from_mut<T>(value: &mut T) -> &mut Object {
-        unsafe { &mut *(value as *mut T as *mut Object) }
-    }
-
     pub(crate) fn ref_at<T>(&self, offset: usize) -> &T {
         unsafe { &*((self as *const Self as *const u8).add(offset) as *const T) }
     }
@@ -47,7 +31,7 @@ impl Object {
         *self.ref_at::<T>(offset)
     }
 
-    pub(crate) fn get_slice<T>(&self, offset: u32) -> &[T] {
+    pub(crate) fn get_slice<T>(&self, offset: usize) -> &[T] {
         self.ref_at::<RepeatedField<T>>(offset as usize).as_ref()
     }
 
@@ -63,7 +47,7 @@ impl Object {
         field.push(val);
     }
 
-    pub(crate) fn bytes(&self, offset: u32) -> &[u8] {
+    pub(crate) fn bytes(&self, offset: usize) -> &[u8] {
         self.ref_at::<Bytes>(offset as usize).as_ref()
     }
 
