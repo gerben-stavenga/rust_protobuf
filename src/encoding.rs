@@ -3,7 +3,7 @@ use std::{mem::MaybeUninit, ptr::NonNull};
 use crate::{
     Protobuf,
     base::Object,
-    repeated_field::{Bytes, RepeatedField},
+    repeated_field::Bytes,
     utils::{Stack, StackWithStorage},
     wire::{FieldKind, SLOP_SIZE, WriteCursor, zigzag_encode},
 };
