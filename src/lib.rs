@@ -12,8 +12,8 @@ mod encoding;
 mod test;
 
 pub trait Protobuf {
-    fn encoding_table() -> &'static [encoding::TableEntry] where Self: Sized;
-    fn decoding_table() -> &'static decoding::Table where Self: Sized;
+    fn encoding_table() -> &'static [encoding::TableEntry];
+    fn decoding_table() -> &'static decoding::Table;
 
     fn as_object(&self) -> &base::Object {
         unsafe { &*(self as *const Self as *const base::Object) }
@@ -34,7 +34,10 @@ pub trait ProtobufExt: Protobuf {
         parser.finish()
     }
 
-    fn parse<'a, E: std::error::Error + Send + Sync + 'static>(&mut self, provider: &'a mut impl FnMut() -> Result<Option<&'a [u8]>, E>) -> anyhow::Result<()> {
+    fn parse<'a, E: std::error::Error + Send + Sync + 'static>(
+        &mut self,
+        provider: &'a mut impl FnMut() -> Result<Option<&'a [u8]>, E>,
+    ) -> anyhow::Result<()> {
         let mut parser = decoding::ResumeableParse::<32>::new(self, isize::MAX);
         loop {
             let Some(buffer) = provider()? else {
@@ -48,6 +51,30 @@ pub trait ProtobufExt: Protobuf {
             return Err(anyhow::anyhow!("parse error"));
         }
         Ok(())
+    }
+
+    fn async_parse<'a, E: std::error::Error + Send + Sync + 'static, F>(
+        &mut self,
+        provider: &'a mut impl FnMut() -> F,
+    ) -> impl std::future::Future<Output = anyhow::Result<()>>
+    where
+        F: std::future::Future<Output = Result<Option<&'a [u8]>, E>> + 'a,
+    {
+        async move {
+            let mut parser = decoding::ResumeableParse::<32>::new(self, isize::MAX);
+            loop {
+                let Some(buffer) = provider().await? else {
+                    break;
+                };
+                if !parser.resume(buffer) {
+                    return Err(anyhow::anyhow!("parse error"));
+                }
+            }
+            if !parser.finish() {
+                return Err(anyhow::anyhow!("parse error"));
+            }
+            Ok(())
+        }
     }
 
     fn parse_from_bufread<const STACK_DEPTH: usize>(
@@ -80,36 +107,41 @@ pub trait ProtobufExt: Protobuf {
         self.parse_from_bufread::<STACK_DEPTH>(&mut buf_reader)
     }
 
-    async fn parse_from_async_bufread<const STACK_DEPTH: usize>(
+    fn parse_from_async_bufread<const STACK_DEPTH: usize>(
         &mut self,
         reader: &mut (impl futures::io::AsyncBufRead + Unpin),
-    ) -> anyhow::Result<()> {
+    ) -> impl std::future::Future<Output = anyhow::Result<()>> {
         use futures::io::AsyncBufReadExt;
 
-        let mut parser = decoding::ResumeableParse::<STACK_DEPTH>::new(self, isize::MAX);
-        loop {
-            let buffer = reader.fill_buf().await?;
-            let len = buffer.len();
-            if len == 0 {
-                break;
+        async move {
+            let mut parser = decoding::ResumeableParse::<STACK_DEPTH>::new(self, isize::MAX);
+            loop {
+                let buffer = reader.fill_buf().await?;
+                let len = buffer.len();
+                if len == 0 {
+                    break;
+                }
+                if !parser.resume(buffer) {
+                    return Err(anyhow::anyhow!("parse error"));
+                }
+                reader.consume_unpin(len);
             }
-            if !parser.resume(buffer) {
+            if !parser.finish() {
                 return Err(anyhow::anyhow!("parse error"));
             }
-            reader.consume_unpin(len);
+            Ok(())
         }
-        if !parser.finish() {
-            return Err(anyhow::anyhow!("parse error"));
-        }
-        Ok(())
     }
 
-    async fn parse_from_async_read<const STACK_DEPTH: usize>(
+    fn parse_from_async_read<const STACK_DEPTH: usize>(
         &mut self,
         reader: &mut (impl futures::io::AsyncRead + Unpin),
-    ) -> anyhow::Result<()> {
-        let mut buf_reader = futures::io::BufReader::new(reader);
-        self.parse_from_async_bufread::<STACK_DEPTH>(&mut buf_reader).await
+    ) -> impl std::future::Future<Output = anyhow::Result<()>> {
+        async move {
+            let mut buf_reader = futures::io::BufReader::new(reader);
+            self.parse_from_async_bufread::<STACK_DEPTH>(&mut buf_reader)
+                .await
+        }
     }
 
     fn encode_flat<'a, const STACK_DEPTH: usize>(
@@ -125,10 +157,9 @@ pub trait ProtobufExt: Protobuf {
         };
         Ok(buf)
     }
-}    
+}
 
 impl<T: Protobuf> ProtobufExt for T {}
-
 
 #[cfg(test)]
 mod tests {

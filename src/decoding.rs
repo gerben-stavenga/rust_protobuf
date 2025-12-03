@@ -503,7 +503,7 @@ pub struct ResumeableParse<'a, const STACK_DEPTH: usize> {
 }
 
 impl<'a, const STACK_DEPTH: usize> ResumeableParse<'a, STACK_DEPTH> {
-    pub fn new<T: Protobuf>(obj: &'a mut T, limit: isize) -> Self where T: Sized {
+    pub fn new<T: Protobuf + ?Sized>(obj: &'a mut T, limit: isize) -> Self {
         let object = ParseObject::Message(obj.as_object_mut(), T::decoding_table());
         Self {
             state: MaybeUninit::new(ResumeableState {

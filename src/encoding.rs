@@ -414,7 +414,7 @@ pub(crate) enum ResumeResult<'a> {
 }
 
 impl<'a, const STACK_DEPTH: usize> ResumeableEncode<'a, STACK_DEPTH> {
-    pub(crate) fn new<T: Protobuf>(obj: &'a T) -> Self {
+    pub(crate) fn new<T: Protobuf + ?Sized>(obj: &'a T) -> Self {
         Self {
             state: MaybeUninit::new(ResumableState {
                 overrun: 0,
