@@ -1,4 +1,4 @@
-use crate::repeated_field::{Bytes, RepeatedField};
+use crate::containers::{Bytes, RepeatedField};
 
 pub struct Object;
 

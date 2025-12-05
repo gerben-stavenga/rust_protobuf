@@ -12,7 +12,7 @@ message Test {
         optional sint64 x = 1;
         optional Test recursive = 2;
     }
-    optional NestedMessage nested_message = 6;
+    repeated NestedMessage nested_message = 6;
 }
 
 

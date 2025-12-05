@@ -2,7 +2,7 @@
 
 pub mod arena;
 pub mod base;
-pub mod repeated_field;
+pub mod containers;
 pub mod wire;
 
 pub mod utils;
@@ -163,17 +163,17 @@ impl<T: Protobuf> ProtobufExt for T {}
 
 #[cfg(test)]
 mod tests {
-    use crate::test;
+    use crate::test::{self, Test_NestedMessage};
 
     use super::*;
 
-    const BUFFER: [u8; 38] = [
+    const BUFFER: [u8; 40] = [
         // x varint 0
         0o10, 1, // y fixed 64, 2
         0o21, 2, 0, 0, 0, 0, 0, 0, 0, // z length delimted 11
         0o32, 21, b'H', b'e', b'l', b'l', b'o', b' ', b'W', b'o', b'r', b'l', b'd', b'!', b'1',
         b'2', b'3', b'4', b'5', b'6', b'7', b'8', b'9', // child is length delimited 34
-        0o42, 2, 0o10, 2,
+        0o42, 4, 0o10, 2, 0o62, 0, // nested_message is length delimited 0
     ];
 
     #[test]
@@ -196,6 +196,9 @@ mod tests {
         test.set_z(b"Hello World!123456789");
         let child = test.child1_mut();
         child.set_x(2);
+        child
+            .nested_message_mut()
+            .push(Box::into_raw(Box::new(Test_NestedMessage::default())));
 
         let mut buffer = [0u8; 64];
 

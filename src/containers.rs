@@ -172,7 +172,7 @@ impl<T> RepeatedField<T> {
         rf
     }
 
-    fn slice(&self) -> &[T] {
+    pub fn slice(&self) -> &[T] {
         if self.len == 0 {
             &[]
         } else {
@@ -180,7 +180,7 @@ impl<T> RepeatedField<T> {
         }
     }
 
-    fn slice_mut(&mut self) -> &mut [T] {
+    pub fn slice_mut(&mut self) -> &mut [T] {
         if self.len == 0 {
             &mut []
         } else {

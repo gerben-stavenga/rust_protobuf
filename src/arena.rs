@@ -1,5 +1,4 @@
 use std::alloc::{Allocator, Layout};
-use std::mem;
 use std::ptr;
 use std::ptr::NonNull;
 
@@ -20,7 +19,7 @@ pub struct Arena<'a> {
 // Mem block is a block of contiguous memory allocated from the allocator
 struct MemBlock {
     prev: *mut MemBlock,
-    layout: Layout,  // Layout of the entire block including header
+    layout: Layout, // Layout of the entire block including header
 }
 
 const DEFAULT_BLOCK_SIZE: usize = 8 * 1024; // 8KB initial block
@@ -57,12 +56,12 @@ impl<'a> Arena<'a> {
     pub fn alloc_raw(&mut self, layout: Layout) -> NonNull<u8> {
         let size = layout.size();
         let align = layout.align();
-        
+
         // Align the cursor to the required alignment
         let cursor_addr = self.cursor as usize;
         let aligned_addr = (cursor_addr + align - 1) & !(align - 1);
         let aligned_cursor = aligned_addr as *mut u8;
-        
+
         // Check if we have enough space: end - aligned_cursor >= size
         let available = self.end as usize - aligned_cursor as usize;
         if std::hint::likely(available >= size) {
@@ -94,7 +93,7 @@ impl<'a> Arena<'a> {
     #[inline(never)]
     fn alloc_outlined(&mut self, layout: Layout, available: usize) -> NonNull<u8> {
         const SIGNIFICANT_SPACE_THRESHOLD: usize = 512; // 512 bytes is "significant"
-        
+
         if available >= SIGNIFICANT_SPACE_THRESHOLD {
             // Significant free space left, which implies this is a large allocation
             // Keep the free space and just allocate a dedicated block for this allocation
@@ -110,7 +109,9 @@ impl<'a> Arena<'a> {
     fn allocate_new_block(&mut self, alloc_layout: Layout) -> NonNull<u8> {
         // Calculate block size - grow exponentially but respect min_size
 
-        let (layout, offset) = Layout::new::<MemBlock>().extend(alloc_layout).expect("Layout overflow");
+        let (layout, offset) = Layout::new::<MemBlock>()
+            .extend(alloc_layout)
+            .expect("Layout overflow");
         let layout = layout.pad_to_align();
 
         let new_block_size = if self.current.is_null() {
@@ -121,7 +122,8 @@ impl<'a> Arena<'a> {
         };
 
         let (layout, block_start) = layout
-            .extend(Layout::array::<u8>(new_block_size).expect("Layout overflow")).expect("Layout overflow");
+            .extend(Layout::array::<u8>(new_block_size).expect("Layout overflow"))
+            .expect("Layout overflow");
         let layout = layout.pad_to_align();
 
         let ptr = self
@@ -147,7 +149,8 @@ impl<'a> Arena<'a> {
     fn alloc_dedicated(&mut self, layout: Layout) -> NonNull<u8> {
         // Use layout extend for proper alignment
         let memblock_layout = Layout::new::<MemBlock>();
-        let (extended_layout, data_offset) = memblock_layout.extend(layout).expect("Layout overflow");
+        let (extended_layout, data_offset) =
+            memblock_layout.extend(layout).expect("Layout overflow");
         let final_layout = extended_layout.pad_to_align();
 
         let ptr = self
@@ -158,7 +161,7 @@ impl<'a> Arena<'a> {
 
         unsafe {
             (*ptr).layout = final_layout;
-            
+
             // Insert just after current head, keeping current as head
             if !self.current.is_null() {
                 // Insert between current and current.prev
@@ -246,7 +249,7 @@ mod tests {
         let u64_ptr: *mut u64 = arena.alloc();
 
         // Check that u64 is properly aligned
-        assert_eq!(u64_ptr as usize % mem::align_of::<u64>(), 0);
+        assert_eq!(u64_ptr as usize % std::mem::align_of::<u64>(), 0);
     }
 
     #[test]

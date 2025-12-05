@@ -3,7 +3,7 @@ use std::{mem::MaybeUninit, ptr::NonNull};
 use crate::{
     Protobuf,
     base::Object,
-    repeated_field::Bytes,
+    containers::Bytes,
     utils::{Stack, StackWithStorage},
     wire::{FieldKind, SLOP_SIZE, WriteCursor, zigzag_encode},
 };
@@ -46,18 +46,20 @@ fn aux_entry<'a>(offset: usize, table: *const [TableEntry]) -> (usize, &'a [Tabl
 struct StackEntry {
     obj: *const Object,
     table: *const [TableEntry],
-    index: usize,
+    field_idx: usize,
+    rep_field_idx: usize,
     byte_count: isize,
     tag: u32,
 }
 
 impl StackEntry {
-    fn into_context<'a>(self) -> (EncodeContext<'a>, u32, isize) {
+    fn into_context<'a>(self) -> (ObjectEncodeState<'a>, u32, isize) {
         (
-            EncodeContext {
+            ObjectEncodeState {
                 obj: unsafe { &*self.obj },
                 table: unsafe { &*self.table },
-                index: self.index,
+                field_idx: self.field_idx,
+                rep_field_idx: self.rep_field_idx,
             },
             self.tag,
             self.byte_count,
@@ -67,22 +69,33 @@ impl StackEntry {
 
 enum EncodeObject<'a> {
     Done,
-    Object(&'a Object, &'a [TableEntry], usize),
+    Object(ObjectEncodeState<'a>),
     String(&'a [u8]),
 }
 
-struct EncodeContext<'a> {
+struct ObjectEncodeState<'a> {
     obj: &'a Object,
     table: &'a [TableEntry],
-    index: usize,
+    field_idx: usize,
+    rep_field_idx: usize,
 }
 
-impl EncodeContext<'_> {
+impl<'a> ObjectEncodeState<'a> {
+    fn new(obj: &'a Object, table: &'a [TableEntry]) -> Self {
+        Self {
+            obj,
+            table,
+            field_idx: table.len(),
+            rep_field_idx: 0,
+        }
+    }
+
     fn push(&mut self, tag: u32, byte_count: isize, stack: &mut Stack<StackEntry>) -> Option<()> {
         stack.push(StackEntry {
             obj: self.obj,
             table: self.table,
-            index: self.index,
+            field_idx: self.field_idx,
+            rep_field_idx: self.rep_field_idx,
             tag,
             byte_count,
         })?;
@@ -93,6 +106,25 @@ impl EncodeContext<'_> {
         let (ctx, tag, byte_count) = stack.pop()?.into_context();
         *self = ctx;
         Some((tag, byte_count))
+    }
+
+    fn has_bit(&self, has_bit_idx: u8) -> bool {
+        self.obj.has_bit(has_bit_idx)
+    }
+
+    fn get<T>(&self, offset: usize) -> T
+    where
+        T: Copy,
+    {
+        self.obj.get::<T>(offset)
+    }
+
+    fn get_slice<T>(&self, offset: usize) -> &'a [T] {
+        self.obj.get_slice::<T>(offset)
+    }
+
+    fn bytes(&self, offset: usize) -> &'a [u8] {
+        self.obj.bytes(offset)
     }
 }
 
@@ -126,105 +158,130 @@ fn count(cursor: WriteCursor, begin: NonNull<u8>, byte_count: isize) -> isize {
 
 type EncodeResult<'a> = Option<(WriteCursor, EncodeObject<'a>)>;
 
+fn write_repeated<T>(
+    obj_state: &mut ObjectEncodeState,
+    cursor: &mut WriteCursor,
+    begin: NonNull<u8>,
+    tag: u32,
+    slice: &[T],
+    write: impl Fn(&mut WriteCursor, &T),
+) {
+    if obj_state.rep_field_idx == 0 {
+        obj_state.rep_field_idx = slice.len();
+    }
+    while obj_state.rep_field_idx > 0 {
+        if *cursor <= begin {
+            break;
+        }
+        obj_state.rep_field_idx -= 1;
+        write(cursor, &slice[obj_state.rep_field_idx]);
+        cursor.write_tag(tag);
+    }
+}
+
 fn encode_loop<'a>(
-    mut ctx: EncodeContext<'a>,
+    mut obj_state: ObjectEncodeState<'a>,
     mut cursor: WriteCursor,
     begin: NonNull<u8>,
     byte_count: isize,
     stack: &mut Stack<StackEntry>,
 ) -> EncodeResult<'a> {
     loop {
-        while ctx.index >= ctx.table.len() {
-            if cursor <= begin {
-                break;
+        if obj_state.rep_field_idx == 0 {
+            while obj_state.field_idx == 0 {
+                if cursor <= begin {
+                    break;
+                }
+                let Some((tag, old_byte_count)) = obj_state.pop(stack) else {
+                    return Some((cursor, EncodeObject::Done));
+                };
+                if old_byte_count >= 0 {
+                    let field_byte_count = count(cursor, begin, byte_count) - old_byte_count;
+                    cursor.write_varint(field_byte_count as u64);
+                }
+                cursor.write_tag(tag);
             }
-            let Some((tag, old_byte_count)) = ctx.pop(stack) else {
-                return Some((cursor, EncodeObject::Done));
-            };
-            if old_byte_count >= 0 {
-                let field_byte_count = count(cursor, begin, byte_count) - old_byte_count;
-                cursor.write_varint(field_byte_count as u64);
-            }
-            cursor.write_tag(tag);
+            obj_state.field_idx -= 1;
+        } else {
+            obj_state.rep_field_idx -= 1;
         }
         let TableEntry {
             has_bit,
             kind,
             offset,
             encoded_tag: tag,
-        } = ctx.table[ctx.index];
-        ctx.index += 1;
+        } = obj_state.table[obj_state.field_idx];
         let offset = offset as usize;
         match kind {
             FieldKind::Unknown => {
                 unreachable!()
             }
             FieldKind::Varint64 => {
-                if ctx.obj.has_bit(has_bit) {
+                if obj_state.has_bit(has_bit) {
                     if cursor <= begin {
                         break;
                     }
-                    cursor.write_varint(ctx.obj.get::<u64>(offset));
+                    cursor.write_varint(obj_state.get::<u64>(offset));
                     cursor.write_tag(tag);
                 }
             }
             FieldKind::Varint32 => {
-                if ctx.obj.has_bit(has_bit) {
+                if obj_state.has_bit(has_bit) {
                     if cursor <= begin {
                         break;
                     }
-                    cursor.write_varint(ctx.obj.get::<u32>(offset) as u64);
+                    cursor.write_varint(obj_state.get::<u32>(offset) as u64);
                     cursor.write_tag(tag);
                 }
             }
             FieldKind::Varint64Zigzag => {
-                if ctx.obj.has_bit(has_bit) {
+                if obj_state.has_bit(has_bit) {
                     if cursor <= begin {
                         break;
                     }
-                    cursor.write_varint(zigzag_encode(ctx.obj.get::<i64>(offset)));
+                    cursor.write_varint(zigzag_encode(obj_state.get::<i64>(offset)));
                     cursor.write_tag(tag);
                 }
             }
             FieldKind::Varint32Zigzag => {
-                if ctx.obj.has_bit(has_bit) {
+                if obj_state.has_bit(has_bit) {
                     if cursor <= begin {
                         break;
                     }
-                    cursor.write_varint(zigzag_encode(ctx.obj.get::<i32>(offset) as i64));
+                    cursor.write_varint(zigzag_encode(obj_state.get::<i32>(offset) as i64));
                     cursor.write_tag(tag);
                 }
             }
             FieldKind::Fixed64 => {
-                if ctx.obj.has_bit(has_bit) {
+                if obj_state.has_bit(has_bit) {
                     if cursor <= begin {
                         break;
                     }
-                    cursor.write_unaligned(ctx.obj.get::<u64>(offset));
+                    cursor.write_unaligned(obj_state.get::<u64>(offset));
                     cursor.write_tag(tag);
                 }
             }
             FieldKind::Fixed32 => {
-                if ctx.obj.has_bit(has_bit) {
+                if obj_state.has_bit(has_bit) {
                     if cursor <= begin {
                         break;
                     }
-                    cursor.write_unaligned(ctx.obj.get::<u32>(offset));
+                    cursor.write_unaligned(obj_state.get::<u32>(offset));
                     cursor.write_tag(tag);
                 }
             }
             FieldKind::Bytes => {
-                if ctx.obj.has_bit(has_bit) {
+                if obj_state.has_bit(has_bit) {
                     if cursor <= begin {
                         break;
                     }
-                    let bytes = ctx.obj.bytes(offset);
+                    let bytes = obj_state.bytes(offset);
                     let len = bytes.len();
                     // We don't use slop as we need to write length prefix and tag too.
                     let buffer_size = (cursor - begin) as usize;
                     if buffer_size < len {
                         cursor.write_slice(&bytes[len - buffer_size..]);
-                        ctx.push(tag, count(cursor, begin, byte_count), stack)?;
+                        obj_state.push(tag, count(cursor, begin, byte_count), stack)?;
                         return Some((cursor, EncodeObject::String(&bytes[..len - buffer_size])));
                     }
                     cursor.write_slice(bytes);
@@ -233,129 +290,183 @@ fn encode_loop<'a>(
                 }
             }
             FieldKind::Message => {
-                let (offset, child_table) = aux_entry(offset, ctx.table);
-                let child_ptr = ctx.obj.get::<*const Object>(offset);
+                let (offset, child_table) = aux_entry(offset, obj_state.table);
+                let child_ptr = obj_state.get::<*const Object>(offset);
                 if !child_ptr.is_null() {
-                    if cursor <= begin {
-                        break;
-                    }
-                    ctx.push(tag, count(cursor, begin, byte_count), stack)?;
-                    ctx.obj = unsafe { &*child_ptr };
-                    ctx.table = child_table;
-                    ctx.index = 0;
-                    continue;
+                    obj_state.push(tag, count(cursor, begin, byte_count), stack)?;
+                    obj_state = ObjectEncodeState::new(unsafe { &*child_ptr }, child_table);
                 }
             }
             FieldKind::Group => {
-                let (offset, child_table) = aux_entry(offset, ctx.table);
-                let child_ptr = ctx.obj.get::<*const Object>(offset);
+                let (offset, child_table) = aux_entry(offset, obj_state.table);
+                let child_ptr = obj_state.get::<*const Object>(offset);
                 if !child_ptr.is_null() {
                     if cursor <= begin {
                         break;
                     }
                     let mut end_tag = tag;
-                    end_tag += 1 << 24; // Set wire type to END_GROUP
+                    end_tag += 1; // Set wire type to END_GROUP
                     cursor.write_tag(end_tag);
-                    ctx.push(tag, -1, stack)?;
-                    ctx.obj = unsafe { &*child_ptr };
-                    ctx.table = child_table;
-                    ctx.index = 0;
+                    obj_state.push(tag, -1, stack)?;
+                    obj_state = ObjectEncodeState::new(unsafe { &*child_ptr }, child_table);
                 }
             }
             FieldKind::RepeatedVarint64 => {
-                for &val in ctx.obj.get_slice::<u64>(offset) {
-                    if cursor <= begin {
-                        break;
-                    }
-                    cursor.write_varint(val);
-                    cursor.write_tag(tag);
-                }
+                let slice = obj_state.get_slice::<u64>(offset);
+                write_repeated(
+                    &mut obj_state,
+                    &mut cursor,
+                    begin,
+                    tag,
+                    slice,
+                    |cursor, &val| {
+                        cursor.write_varint(val);
+                    },
+                );
             }
             FieldKind::RepeatedVarint32 => {
-                for &val in ctx.obj.get_slice::<u32>(offset) {
-                    if cursor <= begin {
-                        break;
-                    }
-                    cursor.write_varint(val as u64);
-                    cursor.write_tag(tag);
-                }
+                let slice = obj_state.get_slice::<u32>(offset);
+                write_repeated(
+                    &mut obj_state,
+                    &mut cursor,
+                    begin,
+                    tag,
+                    slice,
+                    |cursor, &val| {
+                        cursor.write_varint(val as u64);
+                    },
+                );
             }
             FieldKind::RepeatedVarint64Zigzag => {
-                for &val in ctx.obj.get_slice::<i64>(offset) {
-                    if cursor <= begin {
-                        break;
-                    }
-                    cursor.write_varint(zigzag_encode(val));
-                    cursor.write_tag(tag);
-                }
+                let slice = obj_state.get_slice::<i64>(offset);
+                write_repeated(
+                    &mut obj_state,
+                    &mut cursor,
+                    begin,
+                    tag,
+                    slice,
+                    |cursor, &val| {
+                        cursor.write_varint(zigzag_encode(val));
+                    },
+                );
             }
             FieldKind::RepeatedVarint32Zigzag => {
-                for &val in ctx.obj.get_slice::<i32>(offset) {
-                    if cursor <= begin {
-                        break;
-                    }
-                    cursor.write_varint(zigzag_encode(val as i64));
-                    cursor.write_tag(tag);
-                }
+                let slice = obj_state.get_slice::<i32>(offset);
+                write_repeated(
+                    &mut obj_state,
+                    &mut cursor,
+                    begin,
+                    tag,
+                    slice,
+                    |cursor, &val| {
+                        cursor.write_varint(zigzag_encode(val as i64));
+                    },
+                );
             }
             FieldKind::RepeatedFixed64 => {
-                for &val in ctx.obj.get_slice::<u64>(offset) {
-                    if cursor <= begin {
-                        break;
-                    }
-                    cursor.write_unaligned(val);
-                    cursor.write_tag(tag);
-                }
+                let slice = obj_state.get_slice::<u64>(offset);
+                write_repeated(
+                    &mut obj_state,
+                    &mut cursor,
+                    begin,
+                    tag,
+                    slice,
+                    |cursor, &val| {
+                        cursor.write_unaligned(val);
+                    },
+                );
             }
             FieldKind::RepeatedFixed32 => {
-                for &val in ctx.obj.get_slice::<u32>(offset) {
-                    if cursor <= begin {
-                        break;
-                    }
-                    cursor.write_unaligned(val);
-                    cursor.write_tag(tag);
-                }
+                let slice = obj_state.get_slice::<u32>(offset);
+                write_repeated(
+                    &mut obj_state,
+                    &mut cursor,
+                    begin,
+                    tag,
+                    slice,
+                    |cursor, &val| {
+                        cursor.write_unaligned(val);
+                    },
+                );
             }
             FieldKind::RepeatedBytes => {
-                for bytes in ctx.obj.get_slice::<Bytes>(offset) {
+                let slice = obj_state.get_slice::<Bytes>(offset);
+                if obj_state.rep_field_idx == 0 {
+                    obj_state.rep_field_idx = slice.len();
+                }
+                while obj_state.rep_field_idx > 0 {
                     if cursor <= begin {
                         break;
                     }
-                    if cursor - begin + (bytes.len() as isize) > SLOP_SIZE as isize {
-                        unimplemented!();
+                    obj_state.rep_field_idx -= 1;
+                    let bytes = slice[obj_state.rep_field_idx].as_ref();
+                    let len = bytes.len();
+                    // We don't use slop as we need to write length prefix and tag too.
+                    let buffer_size = (cursor - begin) as usize;
+                    if buffer_size < len {
+                        cursor.write_slice(&bytes[len - buffer_size..]);
+                        obj_state.push(tag, count(cursor, begin, byte_count), stack)?;
+                        return Some((cursor, EncodeObject::String(&bytes[..len - buffer_size])));
                     }
                     cursor.write_slice(bytes);
                     cursor.write_varint(bytes.len() as u64);
                     cursor.write_tag(tag);
                 }
+
+                write_repeated(
+                    &mut obj_state,
+                    &mut cursor,
+                    begin,
+                    tag,
+                    slice,
+                    |cursor, val| {
+                        if *cursor - begin + (val.len() as isize) > SLOP_SIZE as isize {
+                            unimplemented!();
+                        }
+                        cursor.write_slice(val);
+                        cursor.write_varint(val.len() as u64);
+                    },
+                );
             }
             FieldKind::RepeatedMessage => {
-                let (offset, child_table) = aux_entry(offset, ctx.table);
-                for &message_ptr in ctx.obj.get_slice::<*const Object>(offset) {
-                    ctx.push(tag, count(cursor, begin, byte_count), stack)?;
-                    ctx.obj = unsafe { &*message_ptr };
-                    ctx.table = child_table;
-                    ctx.index = 0;
+                let (offset, child_table) = aux_entry(offset, obj_state.table);
+                let slice = obj_state.get_slice::<*const Object>(offset);
+                if obj_state.rep_field_idx == 0 {
+                    obj_state.rep_field_idx = slice.len();
+                }
+                if obj_state.rep_field_idx > 0 {
+                    obj_state.rep_field_idx -= 1;
+                    obj_state.push(tag, count(cursor, begin, byte_count), stack)?;
+                    obj_state = ObjectEncodeState::new(
+                        unsafe { &*slice[obj_state.rep_field_idx] },
+                        child_table,
+                    );
                 }
             }
             FieldKind::RepeatedGroup => {
-                let (offset, child_table) = aux_entry(offset, ctx.table);
-                for &message_ptr in ctx.obj.get_slice::<*const Object>(offset) {
+                let (offset, child_table) = aux_entry(offset, obj_state.table);
+                let slice = obj_state.get_slice::<*const Object>(offset);
+                if obj_state.rep_field_idx == 0 {
+                    obj_state.rep_field_idx = slice.len();
+                }
+                if obj_state.rep_field_idx > 0 {
                     if cursor <= begin {
                         break;
                     }
+                    obj_state.rep_field_idx -= 1;
                     let mut end_tag = tag;
-                    end_tag += 1 << 24; // Set wire type to END_GROUP
+                    end_tag += 1; // Set wire type to END_GROUP
                     cursor.write_tag(end_tag);
-                    ctx.push(tag, -1, stack)?;
-                    ctx.obj = unsafe { &*message_ptr };
-                    ctx.table = child_table;
-                    ctx.index = 0;
+                    obj_state.push(tag, -1, stack)?;
+                    obj_state = ObjectEncodeState::new(
+                        unsafe { &*slice[obj_state.rep_field_idx] },
+                        child_table,
+                    );
                 }
             }
         }
     }
-    Some((cursor, EncodeObject::Object(ctx.obj, ctx.table, ctx.index)))
+    Some((cursor, EncodeObject::Object(obj_state)))
 }
 
 struct ResumableState<'a> {
@@ -379,10 +490,7 @@ impl<'a> ResumableState<'a> {
             cursor += overrun;
             let (new_cursor, object) = match object {
                 EncodeObject::Done => (cursor, EncodeObject::Done),
-                EncodeObject::Object(obj, table, index) => {
-                    let ctx = EncodeContext { obj, table, index };
-                    encode_loop(ctx, cursor, begin, byte_count, stack)?
-                }
+                EncodeObject::Object(ctx) => encode_loop(ctx, cursor, begin, byte_count, stack)?,
                 EncodeObject::String(bytes) => {
                     encode_bytes(bytes, cursor, begin, byte_count, stack)?
                 }
@@ -415,10 +523,17 @@ pub(crate) enum ResumeResult<'a> {
 
 impl<'a, const STACK_DEPTH: usize> ResumeableEncode<'a, STACK_DEPTH> {
     pub(crate) fn new<T: Protobuf + ?Sized>(obj: &'a T) -> Self {
+        let table = T::encoding_table();
+        let encode_ctx = ObjectEncodeState {
+            obj: obj.as_object(),
+            table,
+            field_idx: table.len(),
+            rep_field_idx: 0,
+        };
         Self {
             state: MaybeUninit::new(ResumableState {
                 overrun: 0,
-                object: EncodeObject::Object(obj.as_object(), T::encoding_table(), 0),
+                object: EncodeObject::Object(encode_ctx),
                 byte_count: 0,
             }),
             patch_buffer: [0; 2 * SLOP_SIZE],

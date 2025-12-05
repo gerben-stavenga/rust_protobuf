@@ -3,7 +3,7 @@ use std::ptr::NonNull;
 
 use crate::Protobuf;
 use crate::base::Object;
-use crate::repeated_field::{Bytes, RepeatedField};
+use crate::containers::{Bytes, RepeatedField};
 use crate::utils::{Stack, StackWithStorage};
 use crate::wire::{FieldKind, ReadCursor, SLOP_SIZE, zigzag_decode};
 

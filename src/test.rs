@@ -17,10 +17,10 @@ pub struct Test {
     has_bits: [u32; 1],
     x: u32,
     y: u64,
-    z: protobuf::repeated_field::Bytes,
-    child1: *const protobuf::base::Object,
-    child2: *const protobuf::base::Object,
-    nested_message: *const protobuf::base::Object,
+    z: protobuf::containers::Bytes,
+    child1: *mut protobuf::base::Object,
+    child2: *mut protobuf::base::Object,
+    nested_message: protobuf::containers::RepeatedField<*mut protobuf::base::Object>,
 }
 
 impl Test {
@@ -76,21 +76,13 @@ impl Test {
         }
         unsafe { &mut *(self.child2 as *mut Test_Child2) }
     }
-    pub fn nested_message(&self) -> Option<&Test_NestedMessage> {
-        if self.nested_message.is_null() {
-            None
-        } else {
-            Some(unsafe { &*(self.nested_message as *const Test_NestedMessage) })
-        }
+    pub fn nested_message(&self) -> &[Test_NestedMessage] {
+        unsafe { std::mem::transmute(self.nested_message.slice()) }
     }
-    pub fn nested_message_mut(&mut self) -> &mut Test_NestedMessage {
-        let object = self.nested_message;
-        if object.is_null() {
-            let new_object =
-                protobuf::base::Object::create(std::mem::size_of::<Test_NestedMessage>() as u32);
-            self.nested_message = new_object;
-        }
-        unsafe { &mut *(self.nested_message as *mut Test_NestedMessage) }
+    pub fn nested_message_mut(
+        &mut self,
+    ) -> &mut protobuf::containers::RepeatedField<*mut Test_NestedMessage> {
+        unsafe { std::mem::transmute(&mut self.nested_message) }
     }
     // type Child2 = Test_Child2;
     // type NestedMessage = Test_NestedMessage;
@@ -147,7 +139,7 @@ static DECODING_TABLE_Test: protobuf::decoding::TableWithEntries<7, 3> =
             },
             protobuf::decoding::TableEntry {
                 has_bit: 0,
-                kind: protobuf::wire::FieldKind::Message,
+                kind: protobuf::wire::FieldKind::RepeatedMessage,
                 offset: (std::mem::offset_of!(protobuf::decoding::TableWithEntries<7, 3>, 2)
                     + 2 * std::mem::size_of::<protobuf::decoding::AuxTableEntry>())
                     as u16,
@@ -174,11 +166,29 @@ static ENCODING_TABLE_Test: protobuf::encoding::TableWithEntries<6, 3> =
         [
             protobuf::encoding::TableEntry {
                 has_bit: 0,
+                kind: protobuf::wire::FieldKind::Varint32,
+                offset: std::mem::offset_of!(Test, x) as u16,
+                encoded_tag: 8,
+            },
+            protobuf::encoding::TableEntry {
+                has_bit: 1,
+                kind: protobuf::wire::FieldKind::Fixed64,
+                offset: std::mem::offset_of!(Test, y) as u16,
+                encoded_tag: 17,
+            },
+            protobuf::encoding::TableEntry {
+                has_bit: 2,
+                kind: protobuf::wire::FieldKind::Bytes,
+                offset: std::mem::offset_of!(Test, z) as u16,
+                encoded_tag: 26,
+            },
+            protobuf::encoding::TableEntry {
+                has_bit: 0,
                 kind: protobuf::wire::FieldKind::Message,
                 offset: (std::mem::offset_of!(protobuf::encoding::TableWithEntries<6, 3>, 1)
                     + 0 * std::mem::size_of::<protobuf::encoding::AuxTableEntry>())
                     as u16,
-                encoded_tag: 50,
+                encoded_tag: 34,
             },
             protobuf::encoding::TableEntry {
                 has_bit: 0,
@@ -190,43 +200,25 @@ static ENCODING_TABLE_Test: protobuf::encoding::TableWithEntries<6, 3> =
             },
             protobuf::encoding::TableEntry {
                 has_bit: 0,
-                kind: protobuf::wire::FieldKind::Message,
+                kind: protobuf::wire::FieldKind::RepeatedMessage,
                 offset: (std::mem::offset_of!(protobuf::encoding::TableWithEntries<6, 3>, 1)
                     + 2 * std::mem::size_of::<protobuf::encoding::AuxTableEntry>())
                     as u16,
-                encoded_tag: 34,
-            },
-            protobuf::encoding::TableEntry {
-                has_bit: 2,
-                kind: protobuf::wire::FieldKind::Bytes,
-                offset: std::mem::offset_of!(Test, z) as u16,
-                encoded_tag: 26,
-            },
-            protobuf::encoding::TableEntry {
-                has_bit: 1,
-                kind: protobuf::wire::FieldKind::Fixed64,
-                offset: std::mem::offset_of!(Test, y) as u16,
-                encoded_tag: 17,
-            },
-            protobuf::encoding::TableEntry {
-                has_bit: 0,
-                kind: protobuf::wire::FieldKind::Varint32,
-                offset: std::mem::offset_of!(Test, x) as u16,
-                encoded_tag: 8,
+                encoded_tag: 50,
             },
         ],
         [
             protobuf::encoding::AuxTableEntry {
-                offset: std::mem::offset_of!(Test, nested_message),
-                child_table: &ENCODING_TABLE_Test_NestedMessage.0,
+                offset: std::mem::offset_of!(Test, child1),
+                child_table: &ENCODING_TABLE_Test.0,
             },
             protobuf::encoding::AuxTableEntry {
                 offset: std::mem::offset_of!(Test, child2),
                 child_table: &ENCODING_TABLE_Test_Child2.0,
             },
             protobuf::encoding::AuxTableEntry {
-                offset: std::mem::offset_of!(Test, child1),
-                child_table: &ENCODING_TABLE_Test.0,
+                offset: std::mem::offset_of!(Test, nested_message),
+                child_table: &ENCODING_TABLE_Test_NestedMessage.0,
             },
         ],
     );
@@ -235,7 +227,7 @@ static ENCODING_TABLE_Test: protobuf::encoding::TableWithEntries<6, 3> =
 pub struct Test_Child2 {
     has_bits: [u32; 1],
     x: i64,
-    recursive: *const protobuf::base::Object,
+    recursive: *mut protobuf::base::Object,
 }
 
 impl Test_Child2 {
@@ -307,17 +299,17 @@ static ENCODING_TABLE_Test_Child2: protobuf::encoding::TableWithEntries<2, 1> =
         [
             protobuf::encoding::TableEntry {
                 has_bit: 0,
+                kind: protobuf::wire::FieldKind::Varint64Zigzag,
+                offset: std::mem::offset_of!(Test_Child2, x) as u16,
+                encoded_tag: 8,
+            },
+            protobuf::encoding::TableEntry {
+                has_bit: 0,
                 kind: protobuf::wire::FieldKind::Message,
                 offset: (std::mem::offset_of!(protobuf::encoding::TableWithEntries<2, 1>, 1)
                     + 0 * std::mem::size_of::<protobuf::encoding::AuxTableEntry>())
                     as u16,
                 encoded_tag: 18,
-            },
-            protobuf::encoding::TableEntry {
-                has_bit: 0,
-                kind: protobuf::wire::FieldKind::Varint64Zigzag,
-                offset: std::mem::offset_of!(Test_Child2, x) as u16,
-                encoded_tag: 8,
             },
         ],
         [protobuf::encoding::AuxTableEntry {
@@ -330,7 +322,7 @@ static ENCODING_TABLE_Test_Child2: protobuf::encoding::TableWithEntries<2, 1> =
 pub struct Test_NestedMessage {
     has_bits: [u32; 1],
     x: i64,
-    recursive: *const protobuf::base::Object,
+    recursive: *mut protobuf::base::Object,
 }
 
 impl Test_NestedMessage {
@@ -402,17 +394,17 @@ static ENCODING_TABLE_Test_NestedMessage: protobuf::encoding::TableWithEntries<2
         [
             protobuf::encoding::TableEntry {
                 has_bit: 0,
+                kind: protobuf::wire::FieldKind::Varint64Zigzag,
+                offset: std::mem::offset_of!(Test_NestedMessage, x) as u16,
+                encoded_tag: 8,
+            },
+            protobuf::encoding::TableEntry {
+                has_bit: 0,
                 kind: protobuf::wire::FieldKind::Message,
                 offset: (std::mem::offset_of!(protobuf::encoding::TableWithEntries<2, 1>, 1)
                     + 0 * std::mem::size_of::<protobuf::encoding::AuxTableEntry>())
                     as u16,
                 encoded_tag: 18,
-            },
-            protobuf::encoding::TableEntry {
-                has_bit: 0,
-                kind: protobuf::wire::FieldKind::Varint64Zigzag,
-                offset: std::mem::offset_of!(Test_NestedMessage, x) as u16,
-                encoded_tag: 8,
             },
         ],
         [protobuf::encoding::AuxTableEntry {

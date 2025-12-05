@@ -59,12 +59,12 @@ std::string rust_field_member_type(const gp::FieldDescriptor* field) {
             return "f64";
         case FieldDescriptor::TYPE_STRING:
         case FieldDescriptor::TYPE_BYTES:
-            return "protobuf::repeated_field::Bytes";
+            return "protobuf::containers::Bytes";
         case FieldDescriptor::TYPE_BOOL:
             return "bool";
         case FieldDescriptor::TYPE_MESSAGE:
         case FieldDescriptor::TYPE_GROUP:
-            return "*const protobuf::base::Object";
+            return "*mut protobuf::base::Object";
         case FieldDescriptor::TYPE_ENUM:
             return "i32";
     }
@@ -94,7 +94,7 @@ std::string rust_field_type(const gp::FieldDescriptor* field) {
             return "f64";
         case FieldDescriptor::TYPE_STRING:
         case FieldDescriptor::TYPE_BYTES:
-            return "protobuf::repeated_field::Bytes";
+            return "protobuf::containers::Bytes";
         case FieldDescriptor::TYPE_BOOL:
             return "bool";
         case FieldDescriptor::TYPE_MESSAGE:
@@ -106,6 +106,55 @@ std::string rust_field_type(const gp::FieldDescriptor* field) {
     __builtin_unreachable();
 }
 
+std::string field_kind(const gp::FieldDescriptor* field) {
+    std::string field_kind;
+    switch (field->type()) {
+        case gp::FieldDescriptor::TYPE_INT32:
+        case gp::FieldDescriptor::TYPE_UINT32:
+            field_kind = "Varint32";
+            break;
+        case gp::FieldDescriptor::TYPE_SINT32:
+            field_kind = "Varint32Zigzag";
+            break;
+        case gp::FieldDescriptor::TYPE_SFIXED32:
+        case gp::FieldDescriptor::TYPE_FLOAT:
+        case gp::FieldDescriptor::TYPE_FIXED32:
+            field_kind = "Fixed32";
+            break;
+        case gp::FieldDescriptor::TYPE_INT64:
+        case gp::FieldDescriptor::TYPE_UINT64:
+            field_kind = "Varint64";
+            break;
+        case gp::FieldDescriptor::TYPE_SINT64:
+            field_kind = "Varint64Zigzag";
+            break;
+        case gp::FieldDescriptor::TYPE_SFIXED64:
+        case gp::FieldDescriptor::TYPE_DOUBLE:
+        case gp::FieldDescriptor::TYPE_FIXED64:
+            field_kind = "Fixed64";
+            break;
+        case gp::FieldDescriptor::TYPE_BOOL:
+            assert(false && "bool field kind not implemented yet");
+            break;
+        case gp::FieldDescriptor::TYPE_STRING:
+        case gp::FieldDescriptor::TYPE_BYTES:
+            field_kind = "Bytes";
+            break;
+        case gp::FieldDescriptor::TYPE_MESSAGE:
+            field_kind = "Message";
+            break;
+        case gp::FieldDescriptor::TYPE_GROUP:
+            field_kind = "Group";
+            break;
+        case gp::FieldDescriptor::TYPE_ENUM:
+            assert(false && "enum field kind not implemented yet");
+            break;
+    }
+    if (field->label() == gp::FieldDescriptor::LABEL_REPEATED) {
+        field_kind = "Repeated" + field_kind;
+    }
+    return "protobuf::wire::FieldKind::" + field_kind;
+}
 
 void generate_code(const gp::Descriptor* descriptor, gp::io::Printer* printer) {
     auto x = printer->WithVars({{"name", rust_full_name(descriptor)}});
@@ -113,15 +162,12 @@ void generate_code(const gp::Descriptor* descriptor, gp::io::Printer* printer) {
     std::unordered_map<const gp::FieldDescriptor*, int> has_bit_idx;
     for (int i = 0; i < descriptor->field_count(); ++i) {
         const gp::FieldDescriptor* field = descriptor->field(i);
-        if (field->type() == gp::FieldDescriptor::TYPE_MESSAGE ||
-            field->type() == gp::FieldDescriptor::TYPE_GROUP) {
+        if (field->message_type() || field->label() == gp::FieldDescriptor::LABEL_REPEATED) {
             // Messages and groups do not have has bits, as their presence is
             // indicated by a null pointer.
             continue;
         }
-        if (field->label() != gp::FieldDescriptor::LABEL_REPEATED) {
-            has_bit_idx[field] = number_of_has_bits++;
-        }
+        has_bit_idx[field] = number_of_has_bits++;
     }
     printer->Emit(
         {{"N", (number_of_has_bits + 31) / 32}},
@@ -136,7 +182,10 @@ pub struct $name$ {
         for (int i = 0; i < descriptor->field_count(); ++i) {
             const gp::FieldDescriptor* field = descriptor->field(i);
             if (field->label() == gp::FieldDescriptor::LABEL_REPEATED) {
-                assert(false && "repeated fields not implemented yet");
+                printer->Emit(
+                    {{"type", rust_field_member_type(field)},
+                    {"name", field->name()}},
+                    "\n$name$: protobuf::containers::RepeatedField<$type$>,");
             } else {
                 printer->Emit(
                     {{"type", rust_field_member_type(field)},
@@ -154,7 +203,16 @@ impl $name$ {)rs");
         for (int i = 0; i < descriptor->field_count(); ++i) {
             const gp::FieldDescriptor* field = descriptor->field(i);
             if (field->label() == gp::FieldDescriptor::LABEL_REPEATED) {
-                assert(false && "repeated fields not implemented yet");
+                printer->Emit(
+                    {{"type", rust_field_type(field)},
+                    {"name", field->name()}},
+                    R"rs(
+pub fn $name$(&self) -> &[$type$] {
+    unsafe { std::mem::transmute(self.$name$.slice()) }
+}
+pub fn $name$_mut(&mut self) -> &mut protobuf::containers::RepeatedField<*mut $type$> {
+    unsafe { std::mem::transmute(&mut self.$name$) }
+})rs");
             } else {
                 switch (field->type()) {
                     case gp::FieldDescriptor::TYPE_STRING:
@@ -270,71 +328,22 @@ static DECODING_TABLE_$name$: protobuf::decoding::TableWithEntries<$num_entries$
     for (int field_number = 0; field_number <= max_field_number; ++field_number) {
         const gp::FieldDescriptor* field = descriptor->FindFieldByNumber(field_number);
         if (field) {
-            if (field->label() == gp::FieldDescriptor::LABEL_REPEATED) {
-                assert(false && "repeated fields not implemented yet");
+            auto field_kind_str = field_kind(field);
+            if (field->message_type()) {
+                printer->Emit(
+                    {{"has_bit", has_bit_idx[field]},
+                    {"aux_idx", aux_idx++},
+                    {"kind", field_kind_str},
+                    {"num_entries", max_field_number + 1},
+                    {"num_aux_entries", num_aux_entries},
+                    {"field_name", field->name()}},
+                    "protobuf::decoding::TableEntry {has_bit: $has_bit$, kind: $kind$, offset: (std::mem::offset_of!(protobuf::decoding::TableWithEntries<$num_entries$, $num_aux_entries$>, 2) + $aux_idx$ * std::mem::size_of::<protobuf::decoding::AuxTableEntry>()) as u16},\n");
             } else {
-                std::string field_kind;
-                bool needs_aux = false;
-                switch (field->type()) {
-                    case gp::FieldDescriptor::TYPE_INT32:
-                    case gp::FieldDescriptor::TYPE_UINT32:
-                      field_kind = "protobuf::wire::FieldKind::Varint32";
-                      break;
-                    case gp::FieldDescriptor::TYPE_SINT32:
-                      field_kind = "protobuf::wire::FieldKind::Varint32Zigzag";
-                      break;
-                    case gp::FieldDescriptor::TYPE_SFIXED32:
-                    case gp::FieldDescriptor::TYPE_FLOAT:
-                    case gp::FieldDescriptor::TYPE_FIXED32:
-                        field_kind = "protobuf::wire::FieldKind::Fixed32";
-                        break;
-                    case gp::FieldDescriptor::TYPE_INT64:
-                    case gp::FieldDescriptor::TYPE_UINT64:
-                        field_kind = "protobuf::wire::FieldKind::Varint64";
-                        break;
-                    case gp::FieldDescriptor::TYPE_SINT64:
-                        field_kind = "protobuf::wire::FieldKind::Varint64Zigzag";
-                        break;
-                    case gp::FieldDescriptor::TYPE_SFIXED64:
-                    case gp::FieldDescriptor::TYPE_DOUBLE:
-                    case gp::FieldDescriptor::TYPE_FIXED64:
-                        field_kind = "protobuf::wire::FieldKind::Fixed64";
-                        break;
-                    case gp::FieldDescriptor::TYPE_BOOL:
-                        assert(false && "bool field kind not implemented yet");
-                        break;
-                    case gp::FieldDescriptor::TYPE_STRING:
-                    case gp::FieldDescriptor::TYPE_BYTES:
-                        field_kind = "protobuf::wire::FieldKind::Bytes";
-                        break;
-                    case gp::FieldDescriptor::TYPE_MESSAGE:
-                        field_kind = "protobuf::wire::FieldKind::Message";
-                        needs_aux = true;
-                        break;
-                    case gp::FieldDescriptor::TYPE_GROUP:
-                        field_kind = "protobuf::wire::FieldKind::Group";
-                        needs_aux = true;
-                        break;
-                    case gp::FieldDescriptor::TYPE_ENUM:
-                        assert(false && "enum field kind not implemented yet");
-                        break;
-                }
-                if (needs_aux) {
-                    printer->Emit(
-                        {{"has_bit", has_bit_idx[field]},
-                        {"aux_idx", std::to_string(aux_idx++)},
-                        {"kind", field_kind},
-                        {"num_entries", max_field_number + 1},
-                        {"num_aux_entries", num_aux_entries},
-                        {"field_name", field->name()}},
-                        "protobuf::decoding::TableEntry {has_bit: $has_bit$, kind: $kind$, offset: (std::mem::offset_of!(protobuf::decoding::TableWithEntries<$num_entries$, $num_aux_entries$>, 2) + $aux_idx$ * std::mem::size_of::<protobuf::decoding::AuxTableEntry>()) as u16},\n");
-                } else {
-                    printer->Emit(
-                        {{"has_bit", has_bit_idx[field]},
-                        {"kind", field_kind},
-                        {"field_name", field->name()}},
-                        "protobuf::decoding::TableEntry {has_bit: $has_bit$, kind: $kind$, offset: std::mem::offset_of!($name$, $field_name$) as u16},\n");
-                }
+                printer->Emit(
+                    {{"has_bit", has_bit_idx[field]},
+                    {"kind", field_kind_str},
+                    {"field_name", field->name()}},
+                    "protobuf::decoding::TableEntry {has_bit: $has_bit$, kind: $kind$, offset: std::mem::offset_of!($name$, $field_name$) as u16},\n");
             }
         } else {
             printer->Emit("protobuf::decoding::TableEntry {has_bit: 0, kind: protobuf::wire::FieldKind::Unknown, offset: 0}, \n");
@@ -346,8 +355,7 @@ static DECODING_TABLE_$name$: protobuf::decoding::TableWithEntries<$num_entries$
 
     for (int i = 0; i < descriptor->field_count(); ++i) {
         const gp::FieldDescriptor* field = descriptor->field(i);
-        if (field->type() == gp::FieldDescriptor::TYPE_MESSAGE ||
-            field->type() == gp::FieldDescriptor::TYPE_GROUP) {
+        if (field->message_type()) {
             printer->Emit(
                 {{"offset", std::to_string(i)},
                  {"field_name", field->name()},
@@ -365,87 +373,38 @@ static ENCODING_TABLE_$name$: protobuf::encoding::TableWithEntries<$num_entries$
 [
 )rs");
     aux_idx = 0;
-    for (int i = descriptor->field_count() - 1; i >= 0; --i) {
+    for (int i = 0; i < descriptor->field_count(); ++i) {
         const gp::FieldDescriptor* field = descriptor->field(i);
-        if (field->label() == gp::FieldDescriptor::LABEL_REPEATED) {
-            assert(false && "repeated fields not implemented yet");
+        auto field_kind_str = field_kind(field);
+        auto tag = gp::internal::WireFormatLite::MakeTag(field->number(),
+            gp::internal::WireFormat::WireTypeForFieldType(field->type()));
+        // TODO: optimize tag
+        if (field->message_type()) {
+            printer->Emit(
+                {{"has_bit", has_bit_idx[field]},
+                {"aux_idx", aux_idx++},
+                {"kind", field_kind_str},
+                {"num_entries", descriptor->field_count()},
+                {"num_aux_entries", num_aux_entries},
+                {"encoded_tag", tag},
+                {"field_name", field->name()}},
+                "protobuf::encoding::TableEntry {has_bit: $has_bit$, kind: $kind$, offset: (std::mem::offset_of!(protobuf::encoding::TableWithEntries<$num_entries$, $num_aux_entries$>, 1) + $aux_idx$ * std::mem::size_of::<protobuf::encoding::AuxTableEntry>()) as u16, encoded_tag: $encoded_tag$},\n");
         } else {
-            std::string field_kind;
-            bool needs_aux = false;
-            switch (field->type()) {
-                case gp::FieldDescriptor::TYPE_INT32:
-                case gp::FieldDescriptor::TYPE_UINT32:
-                    field_kind = "protobuf::wire::FieldKind::Varint32";
-                    break;
-                case gp::FieldDescriptor::TYPE_SINT32:
-                    field_kind = "protobuf::wire::FieldKind::Varint32Zigzag";
-                    break;
-                case gp::FieldDescriptor::TYPE_SFIXED32:
-                case gp::FieldDescriptor::TYPE_FLOAT:
-                case gp::FieldDescriptor::TYPE_FIXED32:
-                    field_kind = "protobuf::wire::FieldKind::Fixed32";
-                    break;
-                case gp::FieldDescriptor::TYPE_INT64:
-                case gp::FieldDescriptor::TYPE_UINT64:
-                    field_kind = "protobuf::wire::FieldKind::Varint64";
-                    break;
-                case gp::FieldDescriptor::TYPE_SINT64:
-                    field_kind = "protobuf::wire::FieldKind::Varint64Zigzag";
-                    break;
-                case gp::FieldDescriptor::TYPE_SFIXED64:
-                case gp::FieldDescriptor::TYPE_DOUBLE:
-                case gp::FieldDescriptor::TYPE_FIXED64:
-                    field_kind = "protobuf::wire::FieldKind::Fixed64";
-                    break;
-                case gp::FieldDescriptor::TYPE_BOOL:
-                    assert(false && "bool field kind not implemented yet");
-                    break;
-                case gp::FieldDescriptor::TYPE_STRING:
-                case gp::FieldDescriptor::TYPE_BYTES:
-                    field_kind = "protobuf::wire::FieldKind::Bytes";
-                    break;
-                case gp::FieldDescriptor::TYPE_MESSAGE:
-                    field_kind = "protobuf::wire::FieldKind::Message";
-                    needs_aux = true;
-                    break;
-                case gp::FieldDescriptor::TYPE_GROUP:
-                    field_kind = "protobuf::wire::FieldKind::Group";
-                    needs_aux = true;
-                    break;
-                case gp::FieldDescriptor::TYPE_ENUM:
-                    assert(false && "enum field kind not implemented yet");
-                    break;
-            }
-            auto tag = gp::internal::WireFormatLite::MakeTag(field->number(),
-                gp::internal::WireFormat::WireTypeForFieldType(field->type()));
-            // TODO: optimize tag
-            if (needs_aux) {
-                printer->Emit(
-                    {{"has_bit", has_bit_idx[field]},
-                    {"aux_idx", std::to_string(aux_idx++)},
-                    {"kind", field_kind},
-                    {"num_entries", descriptor->field_count()},
-                    {"num_aux_entries", num_aux_entries},
-                    {"encoded_tag", tag},
-                    {"field_name", field->name()}},
-                    "protobuf::encoding::TableEntry {has_bit: $has_bit$, kind: $kind$, offset: (std::mem::offset_of!(protobuf::encoding::TableWithEntries<$num_entries$, $num_aux_entries$>, 1) + $aux_idx$ * std::mem::size_of::<protobuf::encoding::AuxTableEntry>()) as u16, encoded_tag: $encoded_tag$},\n");
-            } else {
-                printer->Emit(
-                    {{"has_bit", has_bit_idx[field]},
-                    {"kind", field_kind},
-                    {"encoded_tag", tag},
-                    {"field_name", field->name()}},
-                    "protobuf::encoding::TableEntry {has_bit: $has_bit$, kind: $kind$, offset: std::mem::offset_of!($name$, $field_name$) as u16, encoded_tag: $encoded_tag$},\n");
-            }
+            printer->Emit(
+                {{"has_bit", has_bit_idx[field]},
+                {"kind", field_kind_str},
+                {"encoded_tag", tag},
+                {"field_name", field->name()}},
+                "protobuf::encoding::TableEntry {has_bit: $has_bit$, kind: $kind$, offset: std::mem::offset_of!($name$, $field_name$) as u16, encoded_tag: $encoded_tag$},\n");
         }
     }
     printer->Emit(R"rs(
 ], [
 )rs");
-    for (int i = descriptor->field_count() - 1; i >= 0; --i) {
+    // TODO reuse aux entries from decoding table
+    for (int i = 0; i < descriptor->field_count(); i++) {
         const gp::FieldDescriptor* field = descriptor->field(i);
-        if (field->type() == gp::FieldDescriptor::TYPE_MESSAGE ||
-            field->type() == gp::FieldDescriptor::TYPE_GROUP) {
+        if (field->message_type()) {
             printer->Emit(
                 {{"offset", std::to_string(i)},
                  {"field_name", field->name()},
