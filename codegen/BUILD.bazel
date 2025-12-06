@@ -3,6 +3,6 @@ cc_binary(
     srcs = ["codegen.cpp"],
     deps = [
         "@protobuf//:protobuf",
-        "//proto:example_cc"
+        "//proto:test_cc"
     ],
 )

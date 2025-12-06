@@ -5,7 +5,7 @@ use std::{
 
 #[repr(C)]
 pub(crate) struct Stack<T> {
-    sp: usize,
+    pub sp: usize,
     entries: [MaybeUninit<T>],
 }
 

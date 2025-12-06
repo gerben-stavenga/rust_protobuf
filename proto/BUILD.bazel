@@ -1,11 +1,11 @@
 package(default_visibility = ["//visibility:public"])
 
 proto_library(
-    name = "example",
-    srcs = ["example.proto"],
+    name = "test",
+    srcs = ["test.proto"],
 )
 
 cc_proto_library(
-    name = "example_cc",
-    deps = [":example"],
+    name = "test_cc",
+    deps = [":test"],
 )

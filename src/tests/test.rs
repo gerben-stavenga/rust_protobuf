@@ -52,10 +52,11 @@ impl Test {
             Some(unsafe { &*(self.child1 as *const Test) })
         }
     }
-    pub fn child1_mut(&mut self) -> &mut Test {
+    pub fn child1_mut(&mut self, arena: &mut crate::arena::Arena) -> &mut Test {
         let object = self.child1;
         if object.is_null() {
-            let new_object = protobuf::base::Object::create(std::mem::size_of::<Test>() as u32);
+            let new_object =
+                protobuf::base::Object::create(std::mem::size_of::<Test>() as u32, arena);
             self.child1 = new_object;
         }
         unsafe { &mut *(self.child1 as *mut Test) }
@@ -67,11 +68,11 @@ impl Test {
             Some(unsafe { &*(self.child2 as *const Test_Child2) })
         }
     }
-    pub fn child2_mut(&mut self) -> &mut Test_Child2 {
+    pub fn child2_mut(&mut self, arena: &mut crate::arena::Arena) -> &mut Test_Child2 {
         let object = self.child2;
         if object.is_null() {
             let new_object =
-                protobuf::base::Object::create(std::mem::size_of::<Test_Child2>() as u32);
+                protobuf::base::Object::create(std::mem::size_of::<Test_Child2>() as u32, arena);
             self.child2 = new_object;
         }
         unsafe { &mut *(self.child2 as *mut Test_Child2) }
@@ -245,10 +246,11 @@ impl Test_Child2 {
             Some(unsafe { &*(self.recursive as *const Test) })
         }
     }
-    pub fn recursive_mut(&mut self) -> &mut Test {
+    pub fn recursive_mut(&mut self, arena: &mut crate::arena::Arena) -> &mut Test {
         let object = self.recursive;
         if object.is_null() {
-            let new_object = protobuf::base::Object::create(std::mem::size_of::<Test>() as u32);
+            let new_object =
+                protobuf::base::Object::create(std::mem::size_of::<Test>() as u32, arena);
             self.recursive = new_object;
         }
         unsafe { &mut *(self.recursive as *mut Test) }
@@ -340,10 +342,11 @@ impl Test_NestedMessage {
             Some(unsafe { &*(self.recursive as *const Test) })
         }
     }
-    pub fn recursive_mut(&mut self) -> &mut Test {
+    pub fn recursive_mut(&mut self, arena: &mut crate::arena::Arena) -> &mut Test {
         let object = self.recursive;
         if object.is_null() {
-            let new_object = protobuf::base::Object::create(std::mem::size_of::<Test>() as u32);
+            let new_object =
+                protobuf::base::Object::create(std::mem::size_of::<Test>() as u32, arena);
             self.recursive = new_object;
         }
         unsafe { &mut *(self.recursive as *mut Test) }

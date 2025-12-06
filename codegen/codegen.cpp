@@ -5,7 +5,7 @@
 #include <iostream>
 #include <unordered_map>
 
-#include "proto/example.pb.h"
+#include "proto/test.pb.h"
 
 #include "google/protobuf/message.h"
 #include "google/protobuf/io/printer.h"
@@ -243,10 +243,10 @@ pub fn $name$(&self) -> Option<&$type$> {
         Some(unsafe { &*(self.$name$ as *const $type$) })
     }
 }
-pub fn $name$_mut(&mut self) -> &mut $type$ {
+pub fn $name$_mut(&mut self, arena: &mut crate::arena::Arena) -> &mut $type$ {
     let object = self.$name$;
     if object.is_null() {
-        let new_object = protobuf::base::Object::create(std::mem::size_of::<$type$>() as u32);
+        let new_object = protobuf::base::Object::create(std::mem::size_of::<$type$>() as u32, arena);
         self.$name$ = new_object;
     }
     unsafe { &mut *(self.$name$ as *mut $type$) }

@@ -171,17 +171,16 @@ impl<'a> ParseContext<'a> {
     fn add<T>(&mut self, entry: TableEntryBits, val: T) {
         self.obj.add(entry.offset(), val);
     }
-}
 
-impl Object {
-    fn get_or_create_child_object<'a>(
-        &'a mut self,
+    fn get_or_create_child_object(
+        &mut self,
         aux_entry: &AuxTableEntry,
+        arena: &mut crate::arena::Arena,
     ) -> (&'a mut Object, &'a Table) {
-        let field = self.ref_mut::<*mut Object>(aux_entry.offset);
+        let field = self.obj.ref_mut::<*mut Object>(aux_entry.offset);
         let child_table = unsafe { &*aux_entry.child_table };
         let child = if (*field).is_null() {
-            let child = Self::create(child_table.size);
+            let child = Object::create(child_table.size, arena);
             *field = child;
             child
         } else {
@@ -190,13 +189,16 @@ impl Object {
         (child, child_table)
     }
 
-    fn add_child_object<'a>(
-        &'a mut self,
+    fn add_child_object(
+        &mut self,
         aux_entry: &AuxTableEntry,
+        arena: &mut crate::arena::Arena,
     ) -> (&'a mut Object, &'a Table) {
-        let field = self.ref_mut::<RepeatedField<*mut Object>>(aux_entry.offset);
+        let field = self
+            .obj
+            .ref_mut::<RepeatedField<*mut Object>>(aux_entry.offset);
         let child_table = unsafe { &*aux_entry.child_table };
-        let child = Self::create(child_table.size);
+        let child = Object::create(child_table.size, arena);
         field.push(child);
         (child, child_table)
     }
@@ -215,6 +217,7 @@ fn parse_string<'a>(
     mut cursor: ReadCursor,
     end: NonNull<u8>,
     stack: &mut Stack<StackEntry>,
+    arena: &mut crate::arena::Arena,
 ) -> ParseLoopResult<'a> {
     if limit > SLOP_SIZE as isize {
         bytes.append(cursor.read_slice(SLOP_SIZE as isize - (cursor - end)));
@@ -222,7 +225,7 @@ fn parse_string<'a>(
     }
     bytes.append(cursor.read_slice(limit - (cursor - end)));
     let ctx = stack.pop()?.into_context(limit, None)?;
-    parse_loop(ctx, cursor, end, stack)
+    parse_loop(ctx, cursor, end, stack, arena)
 }
 
 #[inline(never)]
@@ -231,6 +234,7 @@ fn parse_loop<'a>(
     mut cursor: ReadCursor,
     end: NonNull<u8>,
     stack: &mut Stack<StackEntry>,
+    arena: &mut crate::arena::Arena,
 ) -> ParseLoopResult<'a> {
     let mut limited_end = ctx.limited_end(end);
     // loop popping the stack as needed
@@ -331,7 +335,7 @@ fn parse_loop<'a>(
                             // let end = *std::hint::black_box(&end);
                             let aux_entry = ctx.table.aux_entry(entry.offset());
                             limited_end = ctx.push_limit(len, cursor, end, stack)?;
-                            (ctx.obj, ctx.table) = ctx.obj.get_or_create_child_object(aux_entry);
+                            (ctx.obj, ctx.table) = ctx.get_or_create_child_object(aux_entry, arena);
                         }
                         FieldKind::Group => {
                             // start group
@@ -340,7 +344,7 @@ fn parse_loop<'a>(
                             }
                             let aux_entry = ctx.table.aux_entry(entry.offset());
                             ctx.push_group(field_number, stack)?;
-                            (ctx.obj, ctx.table) = ctx.obj.get_or_create_child_object(aux_entry);
+                            (ctx.obj, ctx.table) = ctx.get_or_create_child_object(aux_entry, arena);
                         }
                         FieldKind::RepeatedVarint64 => {
                             // varint64
@@ -415,7 +419,7 @@ fn parse_loop<'a>(
                             let len = cursor.read_size()?;
                             let aux_entry = ctx.table.aux_entry(entry.offset());
                             limited_end = ctx.push_limit(len, cursor, end, stack)?;
-                            (ctx.obj, ctx.table) = ctx.obj.add_child_object(aux_entry);
+                            (ctx.obj, ctx.table) = ctx.add_child_object(aux_entry, arena);
                         }
                         FieldKind::RepeatedGroup => {
                             // start group
@@ -424,7 +428,7 @@ fn parse_loop<'a>(
                             }
                             let aux_entry = ctx.table.aux_entry(entry.offset());
                             ctx.push_group(field_number, stack)?;
-                            (ctx.obj, ctx.table) = ctx.obj.add_child_object(aux_entry);
+                            (ctx.obj, ctx.table) = ctx.add_child_object(aux_entry, arena);
                         }
                     }
                     continue 'parse_loop;
@@ -467,7 +471,12 @@ struct ResumeableState<'a> {
 }
 
 impl<'a> ResumeableState<'a> {
-    fn go_parse(mut self, buf: &[u8], stack: &mut Stack<StackEntry>) -> Option<Self> {
+    fn go_parse(
+        mut self,
+        buf: &[u8],
+        stack: &mut Stack<StackEntry>,
+        arena: &mut crate::arena::Arena,
+    ) -> Option<Self> {
         let len = buf.len() as isize;
         self.limit -= len;
         if self.overrun >= len {
@@ -483,9 +492,11 @@ impl<'a> ResumeableState<'a> {
                     obj,
                     table,
                 };
-                parse_loop(ctx, cursor, end, stack)?
+                parse_loop(ctx, cursor, end, stack, arena)?
             }
-            ParseObject::Bytes(bytes) => parse_string(self.limit, bytes, cursor, end, stack)?,
+            ParseObject::Bytes(bytes) => {
+                parse_string(self.limit, bytes, cursor, end, stack, arena)?
+            }
             ParseObject::None => unreachable!(),
         };
         self.limit = new_limit;
@@ -517,35 +528,35 @@ impl<'a, const STACK_DEPTH: usize> ResumeableParse<'a, STACK_DEPTH> {
     }
 
     #[must_use]
-    pub fn resume(&mut self, buf: &[u8]) -> bool {
-        self.resume_impl(buf).is_some()
+    pub fn resume(&mut self, buf: &[u8], arena: &mut crate::arena::Arena) -> bool {
+        self.resume_impl(buf, arena).is_some()
     }
 
     #[must_use]
-    pub fn finish(self) -> bool {
+    pub fn finish(self, arena: &mut crate::arena::Arena) -> bool {
         let ResumeableParse {
             state,
             patch_buffer,
             mut stack,
         } = self;
         let state = unsafe { state.assume_init() };
-        let Some(state) = state.go_parse(&patch_buffer[..SLOP_SIZE], &mut stack) else {
+        let Some(state) = state.go_parse(&patch_buffer[..SLOP_SIZE], &mut stack, arena) else {
             return false;
         };
         state.overrun == 0 && matches!(state.object, ParseObject::Message(_, _)) && stack.is_empty()
     }
 
-    fn resume_impl(&mut self, buf: &[u8]) -> Option<()> {
+    fn resume_impl(&mut self, buf: &[u8], arena: &mut crate::arena::Arena) -> Option<()> {
         let size = buf.len();
         let mut state = unsafe { self.state.assume_init_read() };
         if buf.len() > SLOP_SIZE {
             self.patch_buffer[SLOP_SIZE..].copy_from_slice(&buf[..SLOP_SIZE]);
-            state = state.go_parse(&self.patch_buffer[..SLOP_SIZE], &mut self.stack)?;
-            state = state.go_parse(&buf[..size - SLOP_SIZE], &mut self.stack)?;
+            state = state.go_parse(&self.patch_buffer[..SLOP_SIZE], &mut self.stack, arena)?;
+            state = state.go_parse(&buf[..size - SLOP_SIZE], &mut self.stack, arena)?;
             self.patch_buffer[..SLOP_SIZE].copy_from_slice(&buf[size - SLOP_SIZE..]);
         } else {
             self.patch_buffer[SLOP_SIZE..SLOP_SIZE + size].copy_from_slice(buf);
-            state = state.go_parse(&self.patch_buffer[..size], &mut self.stack)?;
+            state = state.go_parse(&self.patch_buffer[..size], &mut self.stack, arena)?;
             self.patch_buffer.copy_within(size..size + SLOP_SIZE, 0);
         }
         self.state.write(state);

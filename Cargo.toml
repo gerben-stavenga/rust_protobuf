@@ -8,6 +8,7 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.100"
 futures = "0.3.31"
+prost = { version = "0.13", optional = true }
 
 [dev-dependencies]
 criterion = "0.5"
@@ -15,6 +16,9 @@ prost = "0.13"
 
 [build-dependencies]
 prost-build = "0.13"
+
+[features]
+bench = ["prost"]
 
 [[bench]]
 name = "proto_bench"

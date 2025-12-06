@@ -186,24 +186,29 @@ fn encode_loop<'a>(
     byte_count: isize,
     stack: &mut Stack<StackEntry>,
 ) -> EncodeResult<'a> {
-    loop {
+    'out: loop {
         if obj_state.rep_field_idx == 0 {
             while obj_state.field_idx == 0 {
+                if stack.is_empty() {
+                    return Some((cursor, EncodeObject::Done));
+                }
                 if cursor <= begin {
-                    break;
+                    break 'out;
                 }
                 let Some((tag, old_byte_count)) = obj_state.pop(stack) else {
-                    return Some((cursor, EncodeObject::Done));
+                    unreachable!()
                 };
                 if old_byte_count >= 0 {
                     let field_byte_count = count(cursor, begin, byte_count) - old_byte_count;
                     cursor.write_varint(field_byte_count as u64);
                 }
                 cursor.write_tag(tag);
+                if obj_state.rep_field_idx != 0 {
+                    continue 'out;
+                }
             }
+            assert!(obj_state.rep_field_idx == 0 && obj_state.field_idx > 0);
             obj_state.field_idx -= 1;
-        } else {
-            obj_state.rep_field_idx -= 1;
         }
         let TableEntry {
             has_bit,
@@ -230,6 +235,7 @@ fn encode_loop<'a>(
                     if cursor <= begin {
                         break;
                     }
+
                     cursor.write_varint(obj_state.get::<u32>(offset) as u64);
                     cursor.write_tag(tag);
                 }
@@ -280,8 +286,8 @@ fn encode_loop<'a>(
                     // We don't use slop as we need to write length prefix and tag too.
                     let buffer_size = (cursor - begin) as usize;
                     if buffer_size < len {
-                        cursor.write_slice(&bytes[len - buffer_size..]);
                         obj_state.push(tag, count(cursor, begin, byte_count), stack)?;
+                        cursor.write_slice(&bytes[len - buffer_size..]);
                         return Some((cursor, EncodeObject::String(&bytes[..len - buffer_size])));
                     }
                     cursor.write_slice(bytes);
@@ -412,21 +418,6 @@ fn encode_loop<'a>(
                     cursor.write_varint(bytes.len() as u64);
                     cursor.write_tag(tag);
                 }
-
-                write_repeated(
-                    &mut obj_state,
-                    &mut cursor,
-                    begin,
-                    tag,
-                    slice,
-                    |cursor, val| {
-                        if *cursor - begin + (val.len() as isize) > SLOP_SIZE as isize {
-                            unimplemented!();
-                        }
-                        cursor.write_slice(val);
-                        cursor.write_varint(val.len() as u64);
-                    },
-                );
             }
             FieldKind::RepeatedMessage => {
                 let (offset, child_table) = aux_entry(offset, obj_state.table);

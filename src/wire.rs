@@ -181,12 +181,12 @@ impl Index<isize> for ReadCursor {
 }
 
 fn varint_size(n: u64) -> isize {
-    let log2 = 64 - (n | 1).leading_zeros();
+    let log2 = (n | 1).ilog2();
     ((log2 * 9 + 64 + 9) / 64) as isize
 }
 
 #[derive(Clone, Copy)]
-pub struct WriteCursor(NonNull<u8>);
+pub struct WriteCursor(pub NonNull<u8>);
 
 impl WriteCursor {
     pub fn new(buffer: &mut [u8]) -> (Self, NonNull<u8>) {

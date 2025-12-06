@@ -1,11 +1,25 @@
-use crate::containers::{Bytes, RepeatedField};
+use std::alloc::Layout;
 
+use crate::{
+    arena::Arena,
+    containers::{Bytes, RepeatedField},
+};
+
+#[repr(align(8))]
 pub struct Object;
 
 impl Object {
-    pub fn create(size: u32) -> &'static mut Object {
-        let buffer = vec![0u64; (size as usize).div_ceil(8)].leak();
-        unsafe { &mut *(buffer as *mut [u64] as *mut Object) }
+    pub fn create(size: u32, arena: &mut Arena) -> &'static mut Object {
+        unsafe {
+            let buffer = arena
+                .alloc_raw(Layout::from_size_align_unchecked(
+                    size as usize,
+                    std::mem::align_of::<Object>(),
+                ))
+                .as_ptr();
+            std::ptr::write_bytes(buffer, 0, size as usize);
+            &mut *(buffer as *mut Object)
+        }
     }
 
     pub(crate) fn ref_at<T>(&self, offset: usize) -> &T {
