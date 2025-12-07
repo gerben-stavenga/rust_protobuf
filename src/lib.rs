@@ -25,39 +25,39 @@ pub trait Protobuf {
 
 pub trait ProtobufExt: Protobuf {
     #[must_use]
-    fn parse_flat<const STACK_DEPTH: usize>(
+    fn decode_flat<const STACK_DEPTH: usize>(
         &mut self,
         arena: &mut crate::arena::Arena,
         buf: &[u8],
     ) -> bool {
-        let mut parser = decoding::ResumeableParse::<STACK_DEPTH>::new(self, isize::MAX);
-        if !parser.resume(buf, arena) {
+        let mut decoder = decoding::ResumeableDecode::<STACK_DEPTH>::new(self, isize::MAX);
+        if !decoder.resume(buf, arena) {
             return false;
         }
-        parser.finish(arena)
+        decoder.finish(arena)
     }
 
-    fn parse<'a, E: std::error::Error + Send + Sync + 'static>(
+    fn decode<'a, E: std::error::Error + Send + Sync + 'static>(
         &mut self,
         arena: &mut crate::arena::Arena,
         provider: &'a mut impl FnMut() -> Result<Option<&'a [u8]>, E>,
     ) -> anyhow::Result<()> {
-        let mut parser = decoding::ResumeableParse::<32>::new(self, isize::MAX);
+        let mut decoder = decoding::ResumeableDecode::<32>::new(self, isize::MAX);
         loop {
             let Some(buffer) = provider()? else {
                 break;
             };
-            if !parser.resume(buffer, arena) {
-                return Err(anyhow::anyhow!("parse error"));
+            if !decoder.resume(buffer, arena) {
+                return Err(anyhow::anyhow!("decode error"));
             }
         }
-        if !parser.finish(arena) {
-            return Err(anyhow::anyhow!("parse error"));
+        if !decoder.finish(arena) {
+            return Err(anyhow::anyhow!("decode error"));
         }
         Ok(())
     }
 
-    fn async_parse<'a, E: std::error::Error + Send + Sync + 'static, F>(
+    fn async_decode<'a, E: std::error::Error + Send + Sync + 'static, F>(
         &'a mut self,
         arena: &mut crate::arena::Arena,
         provider: &'a mut impl FnMut() -> F,
@@ -66,55 +66,55 @@ pub trait ProtobufExt: Protobuf {
         F: std::future::Future<Output = Result<Option<&'a [u8]>, E>> + 'a,
     {
         async move {
-            let mut parser = decoding::ResumeableParse::<32>::new(self, isize::MAX);
+            let mut decoder = decoding::ResumeableDecode::<32>::new(self, isize::MAX);
             loop {
                 let Some(buffer) = provider().await? else {
                     break;
                 };
-                if !parser.resume(buffer, arena) {
-                    return Err(anyhow::anyhow!("parse error"));
+                if !decoder.resume(buffer, arena) {
+                    return Err(anyhow::anyhow!("decode error"));
                 }
             }
-            if !parser.finish(arena) {
-                return Err(anyhow::anyhow!("parse error"));
+            if !decoder.finish(arena) {
+                return Err(anyhow::anyhow!("decode error"));
             }
             Ok(())
         }
     }
 
-    fn parse_from_bufread<const STACK_DEPTH: usize>(
+    fn decode_from_bufread<const STACK_DEPTH: usize>(
         &mut self,
         arena: &mut crate::arena::Arena,
         reader: &mut impl std::io::BufRead,
     ) -> anyhow::Result<()> {
-        let mut parser = decoding::ResumeableParse::<STACK_DEPTH>::new(self, isize::MAX);
+        let mut decoder = decoding::ResumeableDecode::<STACK_DEPTH>::new(self, isize::MAX);
         loop {
             let buffer = reader.fill_buf()?;
             let len = buffer.len();
             if len == 0 {
                 break;
             }
-            if !parser.resume(buffer, arena) {
-                return Err(anyhow::anyhow!("parse error"));
+            if !decoder.resume(buffer, arena) {
+                return Err(anyhow::anyhow!("decode error"));
             }
             reader.consume(len);
         }
-        if !parser.finish(arena) {
-            return Err(anyhow::anyhow!("parse error"));
+        if !decoder.finish(arena) {
+            return Err(anyhow::anyhow!("decode error"));
         }
         Ok(())
     }
 
-    fn parse_from_read<const STACK_DEPTH: usize>(
+    fn decode_from_read<const STACK_DEPTH: usize>(
         &mut self,
         arena: &mut crate::arena::Arena,
         reader: &mut impl std::io::Read,
     ) -> anyhow::Result<()> {
         let mut buf_reader = std::io::BufReader::new(reader);
-        self.parse_from_bufread::<STACK_DEPTH>(arena, &mut buf_reader)
+        self.decode_from_bufread::<STACK_DEPTH>(arena, &mut buf_reader)
     }
 
-    fn parse_from_async_bufread<'a, const STACK_DEPTH: usize>(
+    fn decode_from_async_bufread<'a, const STACK_DEPTH: usize>(
         &'a mut self,
         arena: &'a mut crate::arena::Arena<'a>,
         reader: &mut (impl futures::io::AsyncBufRead + Unpin),
@@ -122,33 +122,33 @@ pub trait ProtobufExt: Protobuf {
         use futures::io::AsyncBufReadExt;
 
         async move {
-            let mut parser = decoding::ResumeableParse::<STACK_DEPTH>::new(self, isize::MAX);
+            let mut decoder = decoding::ResumeableDecode::<STACK_DEPTH>::new(self, isize::MAX);
             loop {
                 let buffer = reader.fill_buf().await?;
                 let len = buffer.len();
                 if len == 0 {
                     break;
                 }
-                if !parser.resume(buffer, arena) {
-                    return Err(anyhow::anyhow!("parse error"));
+                if !decoder.resume(buffer, arena) {
+                    return Err(anyhow::anyhow!("decode error"));
                 }
                 reader.consume_unpin(len);
             }
-            if !parser.finish(arena) {
-                return Err(anyhow::anyhow!("parse error"));
+            if !decoder.finish(arena) {
+                return Err(anyhow::anyhow!("decode error"));
             }
             Ok(())
         }
     }
 
-    fn parse_from_async_read<'a, const STACK_DEPTH: usize>(
+    fn decode_from_async_read<'a, const STACK_DEPTH: usize>(
         &'a mut self,
         arena: &'a mut crate::arena::Arena<'a>,
         reader: &mut (impl futures::io::AsyncRead + Unpin),
     ) -> impl std::future::Future<Output = anyhow::Result<()>> {
         async move {
             let mut buf_reader = futures::io::BufReader::new(reader);
-            self.parse_from_async_bufread::<STACK_DEPTH>(arena, &mut buf_reader)
+            self.decode_from_async_bufread::<STACK_DEPTH>(arena, &mut buf_reader)
                 .await
         }
     }
@@ -235,7 +235,7 @@ pub mod tests {
     pub fn make_protocrap(msg: &prost_gen::Test, arena: &mut crate::arena::Arena) -> test::Test {
         let mut protocrap_msg = test::Test::default();
         let data = encode_prost(msg);
-        assert!(protocrap_msg.parse_flat::<32>(arena, &data));
+        assert!(protocrap_msg.decode_flat::<32>(arena, &data));
         protocrap_msg
     }
 
@@ -244,7 +244,7 @@ pub mod tests {
 
         let mut arena = crate::arena::Arena::new(&std::alloc::Global);
         let mut protocrap_msg = test::Test::default();
-        assert!(protocrap_msg.parse_flat::<32>(&mut arena, &data));
+        assert!(protocrap_msg.decode_flat::<32>(&mut arena, &data));
 
         let mut buffer = vec![0u8; data.len()];
         let written = protocrap_msg

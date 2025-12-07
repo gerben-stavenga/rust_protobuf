@@ -89,7 +89,7 @@ impl StackEntry {
         self,
         mut limit: isize,
         field_number: Option<u32>,
-    ) -> Option<ParseContext<'a>> {
+    ) -> Option<DecodeObjectState<'a>> {
         if let Some(field_number) = field_number {
             if -self.delta_limit_or_group_tag != field_number as isize {
                 return None;
@@ -100,7 +100,7 @@ impl StackEntry {
             }
             limit += self.delta_limit_or_group_tag;
         }
-        Some(ParseContext {
+        Some(DecodeObjectState {
             limit,
             obj: unsafe { &mut *self.obj },
             table: unsafe { &*self.table },
@@ -108,14 +108,21 @@ impl StackEntry {
     }
 }
 
+enum DecodeObject<'a> {
+    None,
+    Message(&'a mut Object, &'a Table),
+    Bytes(&'a mut Bytes),
+}
+
+
 #[repr(C)]
-struct ParseContext<'a> {
+struct DecodeObjectState<'a> {
     limit: isize, // relative to end
     obj: &'a mut Object,
     table: &'a Table,
 }
 
-impl<'a> ParseContext<'a> {
+impl<'a> DecodeObjectState<'a> {
     fn limited_end(&self, end: NonNull<u8>) -> NonNull<u8> {
         unsafe { end.offset(self.limit.min(0)) }
     }
@@ -209,33 +216,33 @@ fn validate_wire_type(tag: u32, expected_wire_type: u8) -> bool {
     (tag & 7) == expected_wire_type as u32
 }
 
-type ParseLoopResult<'a> = Option<(ReadCursor, isize, ParseObject<'a>)>;
+type DecodeLoopResult<'a> = Option<(ReadCursor, isize, DecodeObject<'a>)>;
 
-fn parse_string<'a>(
+fn decode_string<'a>(
     limit: isize,
     bytes: &'a mut Bytes,
     mut cursor: ReadCursor,
     end: NonNull<u8>,
     stack: &mut Stack<StackEntry>,
     arena: &mut crate::arena::Arena,
-) -> ParseLoopResult<'a> {
+) -> DecodeLoopResult<'a> {
     if limit > SLOP_SIZE as isize {
         bytes.append(cursor.read_slice(SLOP_SIZE as isize - (cursor - end)));
-        return Some((cursor, limit, ParseObject::Bytes(bytes)));
+        return Some((cursor, limit, DecodeObject::Bytes(bytes)));
     }
     bytes.append(cursor.read_slice(limit - (cursor - end)));
     let ctx = stack.pop()?.into_context(limit, None)?;
-    parse_loop(ctx, cursor, end, stack, arena)
+    decode_loop(ctx, cursor, end, stack, arena)
 }
 
 #[inline(never)]
-fn parse_loop<'a>(
-    mut ctx: ParseContext<'a>,
+fn decode_loop<'a>(
+    mut ctx: DecodeObjectState<'a>,
     mut cursor: ReadCursor,
     end: NonNull<u8>,
     stack: &mut Stack<StackEntry>,
     arena: &mut crate::arena::Arena,
-) -> ParseLoopResult<'a> {
+) -> DecodeLoopResult<'a> {
     let mut limited_end = ctx.limited_end(end);
     // loop popping the stack as needed
     loop {
@@ -250,7 +257,7 @@ fn parse_loop<'a>(
                         FieldKind::Unknown => {
                             if std::hint::unlikely(tag == 0) {
                                 if stack.is_empty() {
-                                    return Some((cursor, ctx.limit, ParseObject::None));
+                                    return Some((cursor, ctx.limit, DecodeObject::None));
                                 }
                                 return None;
                             }
@@ -323,7 +330,7 @@ fn parse_loop<'a>(
                                     entry.has_bit_idx(),
                                     cursor.read_slice(SLOP_SIZE as isize - (cursor - end)),
                                 );
-                                return Some((cursor, ctx.limit, ParseObject::Bytes(bytes)));
+                                return Some((cursor, ctx.limit, DecodeObject::Bytes(bytes)));
                             }
                         }
                         FieldKind::Message => {
@@ -408,7 +415,7 @@ fn parse_loop<'a>(
                                     entry.offset(),
                                     cursor.read_slice(SLOP_SIZE as isize - (cursor - end)),
                                 );
-                                return Some((cursor, ctx.limit, ParseObject::Bytes(bytes)));
+                                return Some((cursor, ctx.limit, DecodeObject::Bytes(bytes)));
                             }
                         }
                         FieldKind::RepeatedMessage => {
@@ -443,7 +450,7 @@ fn parse_loop<'a>(
         }
         if cursor - end == ctx.limit {
             if stack.is_empty() {
-                return Some((cursor, ctx.limit, ParseObject::None));
+                return Some((cursor, ctx.limit, DecodeObject::None));
             }
             limited_end = ctx.pop_limit(end, stack)?;
             continue;
@@ -455,23 +462,17 @@ fn parse_loop<'a>(
             return None;
         }
     }
-    Some((cursor, ctx.limit, ParseObject::Message(ctx.obj, ctx.table)))
-}
-
-enum ParseObject<'a> {
-    None,
-    Message(&'a mut Object, &'a Table),
-    Bytes(&'a mut Bytes),
+    Some((cursor, ctx.limit, DecodeObject::Message(ctx.obj, ctx.table)))
 }
 
 struct ResumeableState<'a> {
     limit: isize,
-    object: ParseObject<'a>,
+    object: DecodeObject<'a>,
     overrun: isize,
 }
 
 impl<'a> ResumeableState<'a> {
-    fn go_parse(
+    fn go_decode(
         mut self,
         buf: &[u8],
         stack: &mut Stack<StackEntry>,
@@ -486,18 +487,18 @@ impl<'a> ResumeableState<'a> {
         let (mut cursor, end) = ReadCursor::new(buf);
         cursor += self.overrun;
         let (new_cursor, new_limit, new_object) = match self.object {
-            ParseObject::Message(obj, table) => {
-                let ctx = ParseContext {
+            DecodeObject::Message(obj, table) => {
+                let ctx = DecodeObjectState {
                     limit: self.limit,
                     obj,
                     table,
                 };
-                parse_loop(ctx, cursor, end, stack, arena)?
+                decode_loop(ctx, cursor, end, stack, arena)?
             }
-            ParseObject::Bytes(bytes) => {
-                parse_string(self.limit, bytes, cursor, end, stack, arena)?
+            DecodeObject::Bytes(bytes) => {
+                decode_string(self.limit, bytes, cursor, end, stack, arena)?
             }
-            ParseObject::None => unreachable!(),
+            DecodeObject::None => unreachable!(),
         };
         self.limit = new_limit;
         self.object = new_object;
@@ -507,15 +508,15 @@ impl<'a> ResumeableState<'a> {
 }
 
 #[repr(C)]
-pub struct ResumeableParse<'a, const STACK_DEPTH: usize> {
+pub struct ResumeableDecode<'a, const STACK_DEPTH: usize> {
     state: MaybeUninit<ResumeableState<'a>>,
     patch_buffer: [u8; SLOP_SIZE * 2],
     stack: StackWithStorage<StackEntry, STACK_DEPTH>,
 }
 
-impl<'a, const STACK_DEPTH: usize> ResumeableParse<'a, STACK_DEPTH> {
+impl<'a, const STACK_DEPTH: usize> ResumeableDecode<'a, STACK_DEPTH> {
     pub fn new<T: Protobuf + ?Sized>(obj: &'a mut T, limit: isize) -> Self {
-        let object = ParseObject::Message(obj.as_object_mut(), T::decoding_table());
+        let object = DecodeObject::Message(obj.as_object_mut(), T::decoding_table());
         Self {
             state: MaybeUninit::new(ResumeableState {
                 limit,
@@ -534,16 +535,16 @@ impl<'a, const STACK_DEPTH: usize> ResumeableParse<'a, STACK_DEPTH> {
 
     #[must_use]
     pub fn finish(self, arena: &mut crate::arena::Arena) -> bool {
-        let ResumeableParse {
+        let ResumeableDecode {
             state,
             patch_buffer,
             mut stack,
         } = self;
         let state = unsafe { state.assume_init() };
-        let Some(state) = state.go_parse(&patch_buffer[..SLOP_SIZE], &mut stack, arena) else {
+        let Some(state) = state.go_decode(&patch_buffer[..SLOP_SIZE], &mut stack, arena) else {
             return false;
         };
-        state.overrun == 0 && matches!(state.object, ParseObject::Message(_, _)) && stack.is_empty()
+        state.overrun == 0 && matches!(state.object, DecodeObject::Message(_, _)) && stack.is_empty()
     }
 
     fn resume_impl(&mut self, buf: &[u8], arena: &mut crate::arena::Arena) -> Option<()> {
@@ -551,12 +552,12 @@ impl<'a, const STACK_DEPTH: usize> ResumeableParse<'a, STACK_DEPTH> {
         let mut state = unsafe { self.state.assume_init_read() };
         if buf.len() > SLOP_SIZE {
             self.patch_buffer[SLOP_SIZE..].copy_from_slice(&buf[..SLOP_SIZE]);
-            state = state.go_parse(&self.patch_buffer[..SLOP_SIZE], &mut self.stack, arena)?;
-            state = state.go_parse(&buf[..size - SLOP_SIZE], &mut self.stack, arena)?;
+            state = state.go_decode(&self.patch_buffer[..SLOP_SIZE], &mut self.stack, arena)?;
+            state = state.go_decode(&buf[..size - SLOP_SIZE], &mut self.stack, arena)?;
             self.patch_buffer[..SLOP_SIZE].copy_from_slice(&buf[size - SLOP_SIZE..]);
         } else {
             self.patch_buffer[SLOP_SIZE..SLOP_SIZE + size].copy_from_slice(buf);
-            state = state.go_parse(&self.patch_buffer[..size], &mut self.stack, arena)?;
+            state = state.go_decode(&self.patch_buffer[..size], &mut self.stack, arena)?;
             self.patch_buffer.copy_within(size..size + SLOP_SIZE, 0);
         }
         self.state.write(state);

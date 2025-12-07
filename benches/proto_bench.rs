@@ -24,7 +24,7 @@ fn bench_decoding(
         let mut msg = Test::default();
         b.iter(|| {
             msg.nested_message_mut().clear();
-            msg.parse_flat::<32>(&mut arena, black_box(data));
+            msg.decode_flat::<32>(&mut arena, black_box(data));
             black_box(&msg as *const _);
         })
     });

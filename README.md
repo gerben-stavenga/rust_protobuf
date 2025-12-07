@@ -57,6 +57,19 @@ However, pull APIs lack the flexibility our design goals demand. When parsing an
 
 Our solution: a push API. Both parser and serializer become pure functions with the signature `(internal_state, buffer) -> updated_state`. Instead of the protobuf pulling buffers in its inner loops, users push chunks in an outer loop by calling the parse function. This approach supports both synchronous and asynchronous streams without requiring separate implementations. It also eliminates trait compatibility issues—no more situations where third-party crate streams lack the necessary traits and Rust's orphan rules prevent you from implementing them.
 
+## Restrictions
+
+Every framework comes with some limits (often unspecified) to where you can push things. For instance template instantiation recursion limits of a c++ compiler. For a serialization framework these involve how many fields can a schema have, etc.. We are very principled here, we support only _sane_ schemas, so no thousands of fields with arbitrary field numbers in the tens of millions. We support
+1) up to 64 optional fields
+2) Struct sizes up to 1kb
+3) Field numbers up to 1..2047, these are all 1 or 2 byte tags. 
+
+Field numbers should just be assigned consecutive 1 ... max field. We do tolerate holes, but we do not compress field numbers, assigning a single field struct a field number of 2000. Will lead to a very big table. These restrictions simplify code and allows compression of has bit index and offset of fields into a single 16 bit integer, which makes for compact tables. 
+
+We do not bother with unknown fields and extensions. Unknown fields prevent data loss when parsing and reserializing some data, which is mostly non-sensical to do. If you don't reserialize there is very little you can do with unknown fields as without schema information there is very little you can do interpreting the data. Extensions is a confusing feature that is mostly more pain than it solves. We just skip these during parsing.
+
+We don't implement maps, they are treated as repeated fields of key/value pairs. Unlike unknown fields/extension, maps are useful but they do bring quite a bit of complexity. For now we don't support it.
+
 ## Quick Example
 ```rust
 use protocrap::*;
