@@ -1,0 +1,6 @@
+load("//codegen:protocrap.bzl", "protocrap_library")
+
+protocrap_library(
+    name = "descriptor",
+    deps = ["@protobuf//:descriptor_proto"],
+)

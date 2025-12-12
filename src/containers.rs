@@ -11,20 +11,15 @@ pub(super) struct RawVec {
     cap: usize,
 }
 
+unsafe impl Send for RawVec {}
+unsafe impl Sync for RawVec {}
+
 impl RawVec {
-    fn new() -> Self {
+    const fn new() -> Self {
         // `NonNull::dangling()` doubles as "unallocated" and "zero-sized allocation"
         RawVec {
             ptr: std::ptr::null_mut(),
             cap: 0,
-        }
-    }
-
-    fn new_zst() -> Self {
-        // `NonNull::dangling()` doubles as "unallocated" and "zero-sized allocation"
-        RawVec {
-            ptr: NonNull::dangling().as_ptr(),
-            cap: usize::MAX,
         }
     }
 
@@ -129,17 +124,23 @@ pub struct RepeatedField<T> {
     phantom: std::marker::PhantomData<T>,
 }
 
+impl<T: PartialEq> PartialEq for RepeatedField<T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.as_ref() == other.as_ref()
+    }
+}
+
+impl<T: PartialEq> PartialEq<&[T]> for RepeatedField<T> {
+    fn eq(&self, other: &&[T]) -> bool {
+        self.as_ref() == *other
+    }
+}
+
+impl<T: Eq> Eq for RepeatedField<T> where T: Eq {}
+
 impl<T> Default for RepeatedField<T> {
     fn default() -> Self {
-        RepeatedField {
-            buf: if std::mem::size_of::<T>() == 0 {
-                RawVec::new_zst()
-            } else {
-                RawVec::new()
-            },
-            len: 0,
-            phantom: std::marker::PhantomData,
-        }
+        Self::new()
     }
 }
 
@@ -161,8 +162,12 @@ impl<T> RepeatedField<T> {
         self.buf.cap
     }
 
-    pub fn new() -> Self {
-        Self::default()
+    pub const fn new() -> Self {
+        RepeatedField {
+            buf: RawVec::new(),
+            len: 0,
+            phantom: std::marker::PhantomData,
+        }
     }
 
     pub fn from_slice(slice: &[T]) -> Self
@@ -172,6 +177,17 @@ impl<T> RepeatedField<T> {
         let mut rf = Self::new();
         rf.append(slice);
         rf
+    }
+
+    pub const fn from_static_slice(slice: &'static [T]) -> Self {
+        RepeatedField {
+            buf: RawVec {
+                ptr: slice.as_ptr() as *mut u8,
+                cap: slice.len(),
+            },
+            len: slice.len(),
+            phantom: PhantomData,
+        }
     }
 
     pub fn slice(&self) -> &[T] {
@@ -287,15 +303,6 @@ impl<T> RepeatedField<T> {
                 .copy_from_nonoverlapping(slice.as_ptr(), slice.len());
         }
         self.len = old_len + slice.len();
-    }
-}
-
-impl<T> Drop for RepeatedField<T> {
-    fn drop(&mut self) {
-        unsafe {
-            std::ptr::drop_in_place(self.deref_mut());
-        }
-        self.buf.drop(Layout::new::<T>());
     }
 }
 
@@ -446,3 +453,31 @@ impl<'a, T> Drop for Drain<'a, T> {
 }
 
 pub type Bytes = RepeatedField<u8>;
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct String(Bytes);
+impl String {
+    pub const fn new() -> Self {
+        String(RepeatedField::new())
+    }
+
+    pub const fn from_static_slice(s: &'static str) -> Self {
+        String(RepeatedField::from_static_slice(s.as_bytes()))
+    }
+
+    pub fn as_str(&self) -> &str {
+        unsafe { std::str::from_utf8_unchecked(self.0.as_ref()) }
+    }
+}
+
+impl Deref for String {
+    type Target = str;
+    fn deref(&self) -> &str {
+        self.as_str()
+    }
+}
+impl From<&str> for String {
+    fn from(s: &str) -> Self {
+        String(RepeatedField::from_slice(s.as_bytes()))
+    }
+}

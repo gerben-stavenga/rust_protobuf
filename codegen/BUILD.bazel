@@ -1,8 +1,10 @@
+package(default_visibility = ["//visibility:public"])
+
 cc_binary(
-    name = "compiler",
+    name = "protoc-gen-protocrap",
     srcs = ["codegen.cpp"],
     deps = [
         "@protobuf//:protobuf",
-        "//proto:test_cc"
+        "@protobuf//:protoc_lib",
     ],
 )

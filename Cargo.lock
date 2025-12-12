@@ -584,6 +584,7 @@ dependencies = [
  "futures",
  "prost",
  "prost-build",
+ "serde",
 ]
 
 [[package]]

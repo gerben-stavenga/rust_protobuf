@@ -5,7 +5,13 @@ use crate::{
     containers::{Bytes, RepeatedField},
 };
 
-#[repr(align(8))]
+#[derive(Debug, Default, Clone, Copy)]
+#[repr(C)]
+pub struct Message(pub *mut Object);
+
+unsafe impl Send for Message {}
+unsafe impl Sync for Message {}
+
 pub struct Object;
 
 impl Object {
@@ -14,7 +20,7 @@ impl Object {
             let buffer = arena
                 .alloc_raw(Layout::from_size_align_unchecked(
                     size as usize,
-                    std::mem::align_of::<Object>(),
+                    std::mem::align_of::<u64>(),
                 ))
                 .as_ptr();
             std::ptr::write_bytes(buffer, 0, size as usize);
@@ -31,14 +37,13 @@ impl Object {
     }
 
     pub fn has_bit(&self, has_bit_idx: u8) -> bool {
-        let has_bit_idx = has_bit_idx as usize;
-        let has_bit_offset = has_bit_idx / 32;
-        (*self.ref_at::<u32>(has_bit_offset * 4)) & (1 << (has_bit_idx % 32)) != 0
+        debug_assert!(has_bit_idx < 64);
+        (*self.ref_at::<u64>(0)) & (1 << has_bit_idx) != 0
     }
 
     pub fn set_has_bit(&mut self, has_bit_idx: u32) {
-        let has_bit_offset = has_bit_idx / 32;
-        *self.ref_mut::<u32>(has_bit_offset * 4) |= 1 << (has_bit_idx as usize % 32);
+        debug_assert!(has_bit_idx < 64);
+        *self.ref_mut::<u64>(0) |= 1 << has_bit_idx;
     }
 
     pub(crate) fn get<T: Copy>(&self, offset: usize) -> T {

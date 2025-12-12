@@ -7,8 +7,12 @@ pub mod wire;
 
 pub mod utils;
 
-mod decoding;
-mod encoding;
+pub mod decoding;
+pub mod encoding;
+pub mod descriptor;
+
+// #[cfg(feature = "serde_support")]
+// pub mod serde;
 
 pub trait Protobuf {
     fn encoding_table() -> &'static [encoding::TableEntry];
@@ -250,6 +254,8 @@ pub mod tests {
         let written = protocrap_msg
             .encode_flat::<32>(&mut buffer)
             .expect("msg should encode");
+        println!("Protocrap encoded data: {:x?}", &written);
+        println!("Protobuf encoded data : {:x?}", &data);
         assert_eq!(written.len(), data.len());
 
         let decoded_prost = prost_gen::Test::decode(&written[..]).expect("should decode");
@@ -258,31 +264,17 @@ pub mod tests {
     }
 
     #[test]
-    fn test_roundtrips() {
-        println!("Testing small message roundtrip");
+    fn test_small_roundtrips() {
         assert_roundtrip(make_small_prost());
-        assert_roundtrip(make_medium_prost());
-        assert_roundtrip(make_large_prost());
     }
 
     #[test]
-    fn time_encode() {
-        let mut arena = crate::arena::Arena::new(&std::alloc::Global);
-        let prost_msg = make_small_prost();
-        let mut msg = make_protocrap(&prost_msg, &mut arena);
-        let mut buf = vec![0u8; 4096];
-        
-        // Warmup
-        for _ in 0..100 {
-            let _ = msg.encode_flat::<32>(&mut buf);
-        }
-        
-        // Remove the eprintln! from encode_flat first!
-        let t0 = std::time::Instant::now();
-        for _ in 0..10000 {
-            let _ = msg.encode_flat::<32>(&mut buf);
-        }
-        let elapsed = t0.elapsed();
-        eprintln!("10000 encodes: {:?}, per encode: {:?}", elapsed, elapsed / 10000);
-    }    
+    fn test_medium_roundtrips() {
+        assert_roundtrip(make_medium_prost());
+    }
+
+    #[test]
+    fn test_large_roundtrips() {
+        assert_roundtrip(make_large_prost());
+    }
 }

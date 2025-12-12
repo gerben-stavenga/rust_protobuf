@@ -1,9 +1,10 @@
 module(
     name = "proto_compiler",
-    repo_name = "rust_protobuf",
+    repo_name = "protocrap",
 )
 
 bazel_dep(name = "protobuf", version = "29.3")
+bazel_dep(name = "rules_proto", version = "7.0.2")
 
 bazel_dep(name = "hedron_compile_commands", dev_dependency = True)
 git_override(

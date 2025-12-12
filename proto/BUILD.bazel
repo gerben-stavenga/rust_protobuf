@@ -1,11 +1,13 @@
 package(default_visibility = ["//visibility:public"])
 
+load("//codegen:protocrap.bzl", "protocrap_library")
+
 proto_library(
     name = "test",
     srcs = ["test.proto"],
 )
 
-cc_proto_library(
-    name = "test_cc",
+protocrap_library(
+    name = "test_protocrap",
     deps = [":test"],
 )

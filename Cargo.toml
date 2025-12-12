@@ -9,6 +9,7 @@ edition = "2024"
 anyhow = "1.0.100"
 futures = "0.3.31"
 prost = { version = "0.13", optional = true }
+serde = { version = "1.0.228" }
 
 [dev-dependencies]
 criterion = "0.5"
@@ -19,6 +20,7 @@ prost-build = "0.13"
 
 [features]
 bench = ["prost"]
+# serde_support = ["serde"]
 
 [[bench]]
 name = "proto_bench"

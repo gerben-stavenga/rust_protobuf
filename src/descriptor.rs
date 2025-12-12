@@ -9,4 +9,4 @@
 
 use crate as protocrap;
 
-include!(concat!(env!("OUT_DIR"), "/test.pc.rs"));
+include!(concat!(env!("OUT_DIR"), "/descriptor.pc.rs"));

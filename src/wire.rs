@@ -80,6 +80,7 @@ impl ReadCursor {
         (ptr, end)
     }
 
+    #[inline(always)]
     pub fn read_varint(&mut self) -> Option<u64> {
         let res = self[0] as u64;
         if std::hint::likely(res < 0x80) {
@@ -95,6 +96,7 @@ impl ReadCursor {
         }
     }
 
+    #[inline(always)]
     pub fn read_tag(&mut self) -> Option<u32> {
         let res = self[0] as u32;
         if std::hint::likely(res < 0x80) {
@@ -111,6 +113,7 @@ impl ReadCursor {
     }
 
     // Reads a isize varint limited to i32::MAX (used for lengths)
+    #[inline(always)]
     pub fn read_size(&mut self) -> Option<isize> {
         let res = self[0] as isize;
         if std::hint::likely(res < 0x80) {
@@ -126,6 +129,7 @@ impl ReadCursor {
         }
     }
 
+    #[inline(always)]
     pub fn read_unaligned<T>(&mut self) -> T {
         let p = self.0.as_ptr();
         let value = unsafe { std::ptr::read_unaligned(p as *const T) };
@@ -133,15 +137,46 @@ impl ReadCursor {
         value
     }
 
+    #[inline(always)]
     pub fn read_slice(&mut self, len: isize) -> &[u8] {
         let p = self.0.as_ptr();
         let slice = unsafe { std::slice::from_raw_parts(p, len as usize) };
         *self += len;
         slice
     }
+
+    #[inline(always)]
+    pub fn peek_tag(&self) -> u32 {
+        unsafe { std::ptr::read_unaligned(self.0.as_ptr() as *const u16)  as u32 }
+    }
+
+    #[inline(always)]
+    pub fn parse_one_byte_tag(&mut self, tag: u32, expected_wire_type: u32) -> Option<u32> {
+        // The kind table guarantees the 4 field number bits are values to a correct field number.
+        // Given that the table 
+        if std::hint::likely(tag & 0x87 == expected_wire_type) {
+            *self += 1;
+            Some((tag & 0xFF) >> 3)
+        } else {
+            None
+        }
+    }
+
+    #[inline(always)]
+    pub fn parse_two_byte_tag(&mut self, tag: u32, mask: u32, expected_wire_type: u32) -> Option<u32> {
+        // The kind table guarantees that all non-masked bits are expected. The masked bits need to match
+        // the expected wire type.
+        if std::hint::likely(tag & !mask == expected_wire_type) {
+            *self += 2;
+            Some((tag & (tag as i8 as u32)) >> 3)
+        } else {
+            None
+        }
+    }
 }
 
 impl PartialEq<NonNull<u8>> for ReadCursor {
+    #[inline(always)]
     fn eq(&self, other: &NonNull<u8>) -> bool {
         self.0.as_ptr() == other.as_ptr()
     }
@@ -161,6 +196,7 @@ impl Add<isize> for ReadCursor {
 }
 
 impl AddAssign<isize> for ReadCursor {
+    #[inline(always)]
     fn add_assign(&mut self, rhs: isize) {
         *self = *self + rhs;
     }
@@ -175,6 +211,7 @@ impl Sub<NonNull<u8>> for ReadCursor {
 
 impl Index<isize> for ReadCursor {
     type Output = u8;
+    #[inline(always)]
     fn index(&self, index: isize) -> &Self::Output {
         unsafe { &*self.0.as_ptr().offset(index) }
     }
