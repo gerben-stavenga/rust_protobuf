@@ -1,4 +1,4 @@
-use std::{mem::MaybeUninit, ptr::NonNull};
+use core::{mem::MaybeUninit, ptr::NonNull};
 
 use crate::{
     Protobuf,

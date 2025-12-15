@@ -1,6 +1,6 @@
-use std::alloc::{Allocator, Layout};
-use std::ptr;
-use std::ptr::NonNull;
+use core::alloc::{Allocator, Layout};
+use core::ptr;
+use core::ptr::NonNull;
 
 // Arena allocates memory for protobuf objects. Which can be freed all at once.
 // This is useful for short lived objects that are created and destroyed together.
@@ -13,7 +13,7 @@ pub struct Arena<'a> {
     current: *mut MemBlock,
     cursor: *mut u8,
     end: *mut u8,
-    allocator: &'a dyn std::alloc::Allocator,
+    allocator: &'a dyn core::alloc::Allocator,
 }
 
 // Mem block is a block of contiguous memory allocated from the allocator
@@ -64,7 +64,7 @@ impl<'a> Arena<'a> {
 
         // Check if we have enough space: end - aligned_cursor >= size
         let available = self.end as usize - aligned_cursor as usize;
-        if std::hint::likely(available >= size) {
+        if core::hint::likely(available >= size) {
             // Fits in current block - use it regardless of size
             self.cursor = unsafe { aligned_cursor.add(size) };
             return unsafe { NonNull::new_unchecked(aligned_cursor) };
@@ -249,7 +249,7 @@ mod tests {
         let u64_ptr: *mut u64 = arena.alloc();
 
         // Check that u64 is properly aligned
-        assert_eq!(u64_ptr as usize % std::mem::align_of::<u64>(), 0);
+        assert_eq!(u64_ptr as usize % core::mem::align_of::<u64>(), 0);
     }
 
     #[test]

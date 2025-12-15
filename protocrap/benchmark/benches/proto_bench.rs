@@ -7,14 +7,11 @@ use criterion::{
 use prost::Message;
 
 // Your crate
-use protocrap::{
-    ProtobufExt, arena,
-};
 use codegen_tests::{
-    encode_prost, make_large_prost, make_medium_prost, make_protocrap, make_small_prost,
-    prost_gen, Test::ProtoType as Test,
+    Test::ProtoType as Test, encode_prost, make_large_prost, make_medium_prost, make_protocrap,
+    make_small_prost, prost_gen,
 };
-
+use protocrap::{ProtobufExt, arena};
 
 fn bench_decoding(
     group: &mut BenchmarkGroup<'_, impl Measurement>,

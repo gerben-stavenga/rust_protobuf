@@ -1,5 +1,5 @@
-use std::mem::MaybeUninit;
-use std::ptr::NonNull;
+use core::mem::MaybeUninit;
+use core::ptr::NonNull;
 
 use crate::Protobuf;
 use crate::base::Object;
@@ -185,32 +185,44 @@ impl<'a> DecodeObjectState<'a> {
     }
 
     #[inline(always)]
-    fn set<T: std::fmt::Debug>(&mut self, field_number: u32, val: T) {
+    fn set<T>(&mut self, field_number: u32, val: T) {
         let entry = self.table.entry(field_number);
         self.obj.set(entry.offset(), entry.has_bit_idx(), val);
     }
 
     #[inline(always)]
-    fn add<T>(&mut self, field_number: u32, val: T) {
+    fn add<T>(&mut self, field_number: u32, val: T, arena: &mut crate::arena::Arena) {
         let entry = self.table.entry(field_number);
-        self.obj.add(entry.aux_offset(), val);
+        self.obj.add(entry.aux_offset(), val, arena);
     }
 
     #[inline(always)]
-    fn set_bytes(&mut self, field_number: u32, slice: &[u8]) -> &'a mut Bytes {
+    fn set_bytes(
+        &mut self,
+        field_number: u32,
+        slice: &[u8],
+        arena: &mut crate::arena::Arena,
+    ) -> &'a mut Bytes {
         let entry = self.table.entry(field_number);
         unsafe {
-            std::mem::transmute(
-                self.obj
-                    .set_bytes(entry.offset(), entry.has_bit_idx(), slice),
-            )
+            core::mem::transmute(self.obj.set_bytes(
+                entry.offset(),
+                entry.has_bit_idx(),
+                slice,
+                arena,
+            ))
         }
     }
 
     #[inline(always)]
-    fn add_bytes(&mut self, field_number: u32, slice: &[u8]) -> &'a mut Bytes {
+    fn add_bytes(
+        &mut self,
+        field_number: u32,
+        slice: &[u8],
+        arena: &mut crate::arena::Arena,
+    ) -> &'a mut Bytes {
         let entry = self.table.entry(field_number);
-        unsafe { std::mem::transmute(self.obj.add_bytes(entry.aux_offset(), slice)) }
+        unsafe { core::mem::transmute(self.obj.add_bytes(entry.aux_offset(), slice, arena)) }
     }
 
     #[inline(always)]
@@ -244,7 +256,7 @@ impl<'a> DecodeObjectState<'a> {
             .ref_mut::<RepeatedField<*mut Object>>(aux_entry.offset);
         let child_table = unsafe { &*aux_entry.child_table };
         let child = Object::create(child_table.size as u32, arena);
-        field.push(child);
+        field.push(child, arena);
         (child, child_table)
     }
 }
@@ -302,8 +314,8 @@ fn skip_group<'a>(
                         let new_limit = cursor - end + len;
                         let delta_limit = limit - new_limit;
                         stack.push(StackEntry {
-                            obj: std::ptr::null_mut(),
-                            table: std::ptr::null(),
+                            obj: core::ptr::null_mut(),
+                            table: core::ptr::null(),
                             delta_limit_or_group_tag: delta_limit,
                         });
                         return Some((cursor, new_limit, DecodeObject::SkipLengthDelimited));
@@ -312,8 +324,8 @@ fn skip_group<'a>(
                 3 => {
                     // start group
                     stack.push(StackEntry {
-                        obj: std::ptr::null_mut(),
-                        table: std::ptr::null(),
+                        obj: core::ptr::null_mut(),
+                        table: core::ptr::null(),
                         delta_limit_or_group_tag: -(field_number as isize),
                     })?;
                 }
@@ -375,10 +387,13 @@ fn decode_string<'a>(
     arena: &mut crate::arena::Arena,
 ) -> DecodeLoopResult<'a> {
     if limit > SLOP_SIZE as isize {
-        bytes.append(cursor.read_slice(SLOP_SIZE as isize - (cursor - end)));
+        bytes.append(
+            cursor.read_slice(SLOP_SIZE as isize - (cursor - end)),
+            arena,
+        );
         return Some((cursor, limit, DecodeObject::Bytes(bytes)));
     }
-    bytes.append(cursor.read_slice(limit - (cursor - end)));
+    bytes.append(cursor.read_slice(limit - (cursor - end)), arena);
     let ctx = stack.pop()?.into_context(limit, None)?;
     decode_loop(ctx, cursor, end, stack, arena)
 }
@@ -396,7 +411,7 @@ fn decode_loop<'a>(
     loop {
         // inner parse loop
         'parse_loop: while cursor < limited_end {
-            let tag = std::hint::black_box(cursor.peek_tag());
+            let tag = core::hint::black_box(cursor.peek_tag());
             // println!("Decoding tag: {:o}, kind {:?}", tag, ctx.table.kind(tag));
             'unknown: {
                 match ctx.table.kind(tag) {
@@ -442,12 +457,13 @@ fn decode_loop<'a>(
                         };
                         let len = cursor.read_size()?;
                         if cursor - limited_end + len <= SLOP_SIZE as isize {
-                            ctx.set_bytes(field_number, cursor.read_slice(len));
+                            ctx.set_bytes(field_number, cursor.read_slice(len), arena);
                         } else {
                             ctx.push_limit(len, cursor, end, stack)?;
                             let bytes = ctx.set_bytes(
                                 field_number,
                                 cursor.read_slice(SLOP_SIZE as isize - (cursor - end)),
+                                arena,
                             );
                             return Some((cursor, ctx.limit, DecodeObject::Bytes(bytes)));
                         }
@@ -471,37 +487,41 @@ fn decode_loop<'a>(
                         let Some(field_number) = cursor.parse_one_byte_tag(tag, 0) else {
                             break 'unknown;
                         };
-                        ctx.add(field_number, cursor.read_varint()?);
+                        ctx.add(field_number, cursor.read_varint()?, arena);
                     }
                     FieldKind::RepeatedVarint32 => {
                         let Some(field_number) = cursor.parse_one_byte_tag(tag, 0) else {
                             break 'unknown;
                         };
-                        ctx.add(field_number, cursor.read_varint()? as u32);
+                        ctx.add(field_number, cursor.read_varint()? as u32, arena);
                     }
                     FieldKind::RepeatedVarint64Zigzag => {
                         let Some(field_number) = cursor.parse_one_byte_tag(tag, 0) else {
                             break 'unknown;
                         };
-                        ctx.add(field_number, zigzag_decode(cursor.read_varint()?));
+                        ctx.add(field_number, zigzag_decode(cursor.read_varint()?), arena);
                     }
                     FieldKind::RepeatedVarint32Zigzag => {
                         let Some(field_number) = cursor.parse_one_byte_tag(tag, 0) else {
                             break 'unknown;
                         };
-                        ctx.add(field_number, zigzag_decode(cursor.read_varint()?) as i32);
+                        ctx.add(
+                            field_number,
+                            zigzag_decode(cursor.read_varint()?) as i32,
+                            arena,
+                        );
                     }
                     FieldKind::RepeatedFixed64 => {
                         let Some(field_number) = cursor.parse_one_byte_tag(tag, 1) else {
                             break 'unknown;
                         };
-                        ctx.add(field_number, cursor.read_unaligned::<u64>());
+                        ctx.add(field_number, cursor.read_unaligned::<u64>(), arena);
                     }
                     FieldKind::RepeatedFixed32 => {
                         let Some(field_number) = cursor.parse_one_byte_tag(tag, 5) else {
                             break 'unknown;
                         };
-                        ctx.add(field_number, cursor.read_unaligned::<u32>());
+                        ctx.add(field_number, cursor.read_unaligned::<u32>(), arena);
                     }
                     FieldKind::RepeatedBytes => {
                         let Some(field_number) = cursor.parse_one_byte_tag(tag, 2) else {
@@ -509,12 +529,13 @@ fn decode_loop<'a>(
                         };
                         let len = cursor.read_size()?;
                         if cursor - limited_end + len <= SLOP_SIZE as isize {
-                            ctx.add_bytes(field_number, cursor.read_slice(len));
+                            ctx.add_bytes(field_number, cursor.read_slice(len), arena);
                         } else {
                             ctx.push_limit(len, cursor, end, stack)?;
                             let bytes = ctx.add_bytes(
                                 field_number,
                                 cursor.read_slice(SLOP_SIZE as isize - (cursor - end)),
+                                arena,
                             );
                             return Some((cursor, ctx.limit, DecodeObject::Bytes(bytes)));
                         }

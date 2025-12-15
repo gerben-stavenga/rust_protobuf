@@ -1,4 +1,4 @@
-use std::alloc::Layout;
+use core::alloc::Layout;
 
 use crate::{
     arena::Arena,
@@ -26,10 +26,10 @@ impl Object {
             let buffer = arena
                 .alloc_raw(Layout::from_size_align_unchecked(
                     size as usize,
-                    std::mem::align_of::<u64>(),
+                    core::mem::align_of::<u64>(),
                 ))
                 .as_ptr();
-            std::ptr::write_bytes(buffer, 0, size as usize);
+            core::ptr::write_bytes(buffer, 0, size as usize);
             &mut *(buffer as *mut Object)
         }
     }
@@ -67,26 +67,32 @@ impl Object {
         field
     }
 
-    pub(crate) fn add<T>(&mut self, offset: u32, val: T) {
+    pub(crate) fn add<T>(&mut self, offset: u32, val: T, arena: &mut Arena) {
         let field = self.ref_mut::<RepeatedField<T>>(offset);
-        field.push(val);
+        field.push(val, arena);
     }
 
     pub(crate) fn bytes(&self, offset: usize) -> &[u8] {
         self.ref_at::<Bytes>(offset).as_ref()
     }
 
-    pub(crate) fn set_bytes(&mut self, offset: u32, has_bit_idx: u32, bytes: &[u8]) -> &mut Bytes {
+    pub(crate) fn set_bytes(
+        &mut self,
+        offset: u32,
+        has_bit_idx: u32,
+        bytes: &[u8],
+        arena: &mut Arena,
+    ) -> &mut Bytes {
         self.set_has_bit(has_bit_idx);
         let field = self.ref_mut::<Bytes>(offset);
-        field.assign(bytes);
+        field.assign(bytes, arena);
         field
     }
 
-    pub(crate) fn add_bytes(&mut self, offset: u32, bytes: &[u8]) -> &mut Bytes {
+    pub(crate) fn add_bytes(&mut self, offset: u32, bytes: &[u8], arena: &mut Arena) -> &mut Bytes {
         let field = self.ref_mut::<RepeatedField<Bytes>>(offset);
-        let b = Bytes::from_slice(bytes);
-        field.push(b);
+        let b = Bytes::from_slice(bytes, arena);
+        field.push(b, arena);
         field.last_mut().unwrap()
     }
 }

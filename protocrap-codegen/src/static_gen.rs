@@ -6,9 +6,7 @@ use prost_reflect::{DynamicMessage, FieldDescriptor, MessageDescriptor, ReflectM
 use quote::{format_ident, quote};
 
 /// Generate static initializer for any proto message using runtime reflection
-pub fn generate_static_dynamic(
-    value: &DynamicMessage,
-) -> Result<TokenStream> {
+pub fn generate_static_dynamic(value: &DynamicMessage) -> Result<TokenStream> {
     let descriptor = value.descriptor();
 
     // Calculate has_bits
@@ -79,9 +77,7 @@ fn generate_field_initializers(
     Ok(inits)
 }
 
-fn generate_field_value(
-    value: &Value,
-) -> Result<(TokenStream, TokenStream)> {
+fn generate_field_value(value: &Value) -> Result<(TokenStream, TokenStream)> {
     match value {
         Value::Bool(b) => Ok((quote! { #b }, quote! { bool })),
         Value::I32(v) | Value::EnumNumber(v) => {
@@ -156,9 +152,7 @@ fn generate_field_value(
     }
 }
 
-fn generate_nested_message(
-    msg: &DynamicMessage,
-) -> Result<TokenStream> {
+fn generate_nested_message(msg: &DynamicMessage) -> Result<TokenStream> {
     let nested_initializer = generate_static_dynamic(msg)?;
     // Parse type path
     let path_parts: Vec<_> = msg

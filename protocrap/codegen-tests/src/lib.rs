@@ -1,4 +1,3 @@
-
 #![feature(allocator_api)]
 
 use protocrap::{self, ProtobufExt};
@@ -61,13 +60,17 @@ pub fn encode_prost(msg: &prost_gen::Test) -> Vec<u8> {
     buf
 }
 
-pub fn make_protocrap(msg: &prost_gen::Test, arena: &mut protocrap::arena::Arena) -> Test::ProtoType {
+pub fn make_protocrap(
+    msg: &prost_gen::Test,
+    arena: &mut protocrap::arena::Arena,
+) -> Test::ProtoType {
     let mut protocrap_msg = Test::ProtoType::default();
     let data = encode_prost(msg);
     assert!(protocrap_msg.decode_flat::<32>(arena, &data));
     protocrap_msg
 }
 
+#[cfg(test)]
 fn assert_roundtrip(msg: prost_gen::Test) {
     let data = encode_prost(&msg);
 
@@ -79,8 +82,6 @@ fn assert_roundtrip(msg: prost_gen::Test) {
     let written = protocrap_msg
         .encode_flat::<32>(&mut buffer)
         .expect("msg should encode");
-    println!("Protocrap encoded data: {:x?}", &written);
-    println!("Protobuf encoded data : {:x?}", &data);
     assert_eq!(written.len(), data.len());
 
     let decoded_prost = prost_gen::Test::decode(&written[..]).expect("should decode");
@@ -101,4 +102,18 @@ fn test_medium_roundtrips() {
 #[test]
 fn test_large_roundtrips() {
     assert_roundtrip(make_large_prost());
+}
+
+#[test]
+fn test_serde_serialization() {
+    let msg = make_medium_prost();
+    let data = encode_prost(&msg);
+
+    let mut arena = protocrap::arena::Arena::new(&std::alloc::Global);
+    let mut protocrap_msg = Test::ProtoType::default();
+    assert!(protocrap_msg.decode_flat::<32>(&mut arena, &data));
+
+    let serialized = serde_json::to_string(&protocrap::serde::SerdeProtobuf(&protocrap_msg))
+        .expect("should serialize");
+    println!("Serialized message: {}", serialized);
 }

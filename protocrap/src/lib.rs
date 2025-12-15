@@ -1,4 +1,5 @@
 #![feature(likely_unlikely, allocator_api)]
+#![cfg_attr(not(feature = "std"), no_std)]
 
 pub mod arena;
 pub mod base;
@@ -14,12 +15,14 @@ use crate as protocrap;
 
 include!(concat!(env!("OUT_DIR"), "/descriptor.pc.rs"));
 
-// #[cfg(feature = "serde_support")]
-// pub mod serde;
+#[cfg(feature = "serde_support")]
+pub mod serde;
 
 pub trait Protobuf {
     fn encoding_table() -> &'static [encoding::TableEntry];
     fn decoding_table() -> &'static decoding::Table;
+    fn file_descriptor() -> &'static google::protobuf::FileDescriptorProto::ProtoType;
+    fn descriptor_proto() -> &'static google::protobuf::DescriptorProto::ProtoType;
 
     fn as_object(&self) -> &base::Object {
         unsafe { &*(self as *const Self as *const base::Object) }
@@ -44,7 +47,7 @@ pub trait ProtobufExt: Protobuf {
         decoder.finish(arena)
     }
 
-    fn decode<'a, E: std::error::Error + Send + Sync + 'static>(
+    fn decode<'a, E: core::error::Error + Send + Sync + 'static>(
         &mut self,
         arena: &mut crate::arena::Arena,
         provider: &'a mut impl FnMut() -> Result<Option<&'a [u8]>, E>,
@@ -64,13 +67,13 @@ pub trait ProtobufExt: Protobuf {
         Ok(())
     }
 
-    fn async_decode<'a, E: std::error::Error + Send + Sync + 'static, F>(
+    fn async_decode<'a, E: core::error::Error + Send + Sync + 'static, F>(
         &'a mut self,
         arena: &mut crate::arena::Arena,
         provider: &'a mut impl FnMut() -> F,
-    ) -> impl std::future::Future<Output = anyhow::Result<()>>
+    ) -> impl core::future::Future<Output = anyhow::Result<()>>
     where
-        F: std::future::Future<Output = Result<Option<&'a [u8]>, E>> + 'a,
+        F: core::future::Future<Output = Result<Option<&'a [u8]>, E>> + 'a,
     {
         async move {
             let mut decoder = decoding::ResumeableDecode::<32>::new(self, isize::MAX);
@@ -89,6 +92,7 @@ pub trait ProtobufExt: Protobuf {
         }
     }
 
+    #[cfg(feature = "std")]
     fn decode_from_bufread<const STACK_DEPTH: usize>(
         &mut self,
         arena: &mut crate::arena::Arena,
@@ -112,6 +116,7 @@ pub trait ProtobufExt: Protobuf {
         Ok(())
     }
 
+    #[cfg(feature = "std")]
     fn decode_from_read<const STACK_DEPTH: usize>(
         &mut self,
         arena: &mut crate::arena::Arena,
@@ -125,7 +130,7 @@ pub trait ProtobufExt: Protobuf {
         &'a mut self,
         arena: &'a mut crate::arena::Arena<'a>,
         reader: &mut (impl futures::io::AsyncBufRead + Unpin),
-    ) -> impl std::future::Future<Output = anyhow::Result<()>> {
+    ) -> impl core::future::Future<Output = anyhow::Result<()>> {
         use futures::io::AsyncBufReadExt;
 
         async move {
@@ -152,7 +157,7 @@ pub trait ProtobufExt: Protobuf {
         &'a mut self,
         arena: &'a mut crate::arena::Arena<'a>,
         reader: &mut (impl futures::io::AsyncRead + Unpin),
-    ) -> impl std::future::Future<Output = anyhow::Result<()>> {
+    ) -> impl core::future::Future<Output = anyhow::Result<()>> {
         async move {
             let mut buf_reader = futures::io::BufReader::new(reader);
             self.decode_from_async_bufread::<STACK_DEPTH>(arena, &mut buf_reader)
@@ -176,3 +181,21 @@ pub trait ProtobufExt: Protobuf {
 }
 
 impl<T: Protobuf> ProtobufExt for T {}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn descriptor_accessors() {
+        use crate::Protobuf;
+        let file_descriptor =
+            crate::google::protobuf::FileDescriptorProto::ProtoType::file_descriptor();
+        let message_descriptor =
+            crate::google::protobuf::DescriptorProto::ProtoType::descriptor_proto();
+        let nested_descriptor =
+            crate::google::protobuf::DescriptorProto::ExtensionRange::ProtoType::descriptor_proto();
+
+        assert_eq!(file_descriptor.name(), "descriptor.proto");
+        assert_eq!(message_descriptor.name(), "DescriptorProto");
+        assert_eq!(nested_descriptor.name(), "ExtensionRange");
+    }
+}

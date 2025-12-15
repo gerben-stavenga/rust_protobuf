@@ -8,10 +8,15 @@ edition = "2024"
 [dependencies]
 anyhow = "1.0.100"
 futures = "0.3.31"
-serde = { version = "1.0.228" }
+serde = { version = "1.0.228", optional = true}
 
 [build-dependencies]
 protocrap-codegen = { path = "../protocrap-codegen" }
+
+[features]
+default = ["std", "serde_support"]
+serde_support = ["serde"]
+std = []
 
 [profile.dev]
 panic = 'abort'

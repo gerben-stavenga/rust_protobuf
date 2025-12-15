@@ -127,6 +127,7 @@ dependencies = [
  "protocrap",
  "protocrap-codegen",
  "serde",
+ "serde_json",
 ]
 
 [[package]]

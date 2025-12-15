@@ -25,7 +25,7 @@ pub fn generate_encoding_table(
             aux_index_map.insert(field.number.unwrap(), num_aux);
             quote! {
                 protocrap::encoding::AuxTableEntry {
-                    offset: std::mem::offset_of!(ProtoType, #field_name),
+                    offset: core::mem::offset_of!(ProtoType, #field_name),
                     child_table: &#child_table::ENCODING_TABLE.0,
                 }
             }
@@ -46,16 +46,16 @@ pub fn generate_encoding_table(
                 protocrap::encoding::TableEntry {
                     has_bit: #has_bit,
                     kind: #kind,
-                    offset: (std::mem::offset_of!(protocrap::encoding::TableWithEntries<#field_count, #num_aux_entries>, 1) + #aux_index * std::mem::size_of::<protocrap::encoding::AuxTableEntry>()) as u16,
+                    offset: (core::mem::offset_of!(protocrap::encoding::TableWithEntries<#field_count, #num_aux_entries>, 1) + #aux_index * core::mem::size_of::<protocrap::encoding::AuxTableEntry>()) as u16,
                     encoded_tag: #encoded_tag,
                 }
             }
-        } else {        
+        } else {
             quote! {
                 protocrap::encoding::TableEntry {
                     has_bit: #has_bit,
                     kind: #kind,
-                    offset: std::mem::offset_of!(ProtoType, #field_name) as u16,
+                    offset: core::mem::offset_of!(ProtoType, #field_name) as u16,
                     encoded_tag: #encoded_tag,
                 }
             }
@@ -126,7 +126,7 @@ pub fn generate_decoding_table(
             aux_index_map.insert(field.number.unwrap(), num_aux);
             quote! {
                 protocrap::decoding::AuxTableEntry {
-                    offset: std::mem::offset_of!(ProtoType, #field_name) as u32,
+                    offset: core::mem::offset_of!(ProtoType, #field_name) as u32,
                     child_table: &#child_table::DECODING_TABLE.0,
                 }
             }
@@ -138,19 +138,19 @@ pub fn generate_decoding_table(
     let table_entries: Vec<_> = (0..=max_field_number).map(|field_number| {
         if let Some(field) = message.field.iter().find(|f| f.number.unwrap() == field_number as i32) {
             let field_name = format_ident!("{}", sanitize_field_name(field.name.as_ref().unwrap()));
-            
+
             if matches!(field.r#type(), Type::Message | Type::Group) {
                 let aux_index = *aux_index_map.get(&field_number).unwrap();
                 // Message field - offset points to aux entry
                 quote! { protocrap::decoding::TableEntry(
-                    (std::mem::offset_of!(protocrap::decoding::TableWithEntries<#num_masked, #num_entries, #num_aux_entries>, 3) + #aux_index * std::mem::size_of::<protocrap::decoding::AuxTableEntry>()) as u16) }
+                    (core::mem::offset_of!(protocrap::decoding::TableWithEntries<#num_masked, #num_entries, #num_aux_entries>, 3) + #aux_index * core::mem::size_of::<protocrap::decoding::AuxTableEntry>()) as u16) }
             } else {
                 let has_bit = has_bit_map.get(&field_number).copied().unwrap_or(0);
                 let has_bit_shifted = (has_bit << 10) as u16;
-                
+
                 quote! {
                     protocrap::decoding::TableEntry(
-                        std::mem::offset_of!(ProtoType, #field_name) as u16 + #has_bit_shifted
+                        core::mem::offset_of!(ProtoType, #field_name) as u16 + #has_bit_shifted
                     )
                 }
             }
@@ -164,7 +164,7 @@ pub fn generate_decoding_table(
             protocrap::decoding::TableWithEntries(
                 protocrap::decoding::Table {
                     mask: #mask,
-                    size: std::mem::size_of::<ProtoType>() as u16,
+                    size: core::mem::size_of::<ProtoType>() as u16,
                 },
                 [#(#masked_entries,)*],
                 [#(#table_entries,)*],

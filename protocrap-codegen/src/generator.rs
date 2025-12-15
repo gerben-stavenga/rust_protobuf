@@ -10,9 +10,7 @@ use prost_reflect::DynamicMessage;
 use prost_types::*;
 use quote::{format_ident, quote};
 
-pub fn generate_file_set(
-    file_set: &FileDescriptorSet,
-) -> Result<TokenStream> {
+pub fn generate_file_set(file_set: &FileDescriptorSet) -> Result<TokenStream> {
     let mut items = Vec::new();
 
     for file in &file_set.file {
@@ -36,8 +34,10 @@ fn generate_file(file: &FileDescriptorProto) -> Result<TokenStream> {
     }
 
     // Generate messages
-    for message in &file.message_type {
-        items.push(generate_message(message, file)?);
+    for (idx, message) in file.message_type.iter().enumerate() {
+        let mut path = Vec::new();
+        path.push(idx);
+        items.push(generate_message(message, file, path)?);
     }
 
     let file_descriptor = {
@@ -48,7 +48,9 @@ fn generate_file(file: &FileDescriptorProto) -> Result<TokenStream> {
         let pool = DescriptorPool::global();
         let descriptor = pool
             .get_message_by_name("google.protobuf.FileDescriptorProto")
-            .ok_or(anyhow::anyhow!("FileDescriptorProto not found in global pool"))?;
+            .ok_or(anyhow::anyhow!(
+                "FileDescriptorProto not found in global pool"
+            ))?;
 
         // Decode as DynamicMessage
         let dynamic = DynamicMessage::decode(descriptor.clone(), &encoded[..])?;
@@ -75,9 +77,7 @@ fn generate_file(file: &FileDescriptorProto) -> Result<TokenStream> {
     Ok(res)
 }
 
-fn generate_enum(
-    enum_desc: &EnumDescriptorProto,
-) -> Result<TokenStream> {
+fn generate_enum(enum_desc: &EnumDescriptorProto) -> Result<TokenStream> {
     let name = format_ident!("{}", enum_desc.name.as_ref().unwrap());
 
     // Enum variants
@@ -127,9 +127,10 @@ fn generate_enum(
 
 fn generate_message(
     message: &DescriptorProto,
-    _file: &FileDescriptorProto,
+    file: &FileDescriptorProto,
+    path: Vec<usize>,
 ) -> Result<TokenStream> {
-    let msg = generate_message_impl(message, _file)?;
+    let msg = generate_message_impl(message, file, path)?;
     let name = format_ident!("{}", sanitize_field_name(message.name()));
 
     Ok(quote! {
@@ -145,14 +146,17 @@ fn generate_message(
 
 fn generate_message_impl(
     message: &DescriptorProto,
-    _file: &FileDescriptorProto,
+    file: &FileDescriptorProto,
+    path: Vec<usize>,
 ) -> Result<TokenStream> {
     // Nested types first
-    let nested_items: Vec<_> = message
-        .nested_type
-        .iter()
-        .map(|nested| generate_message(nested, _file))
-        .collect::<Result<Vec<_>, _>>()?;
+
+    let mut nested_items = Vec::new();
+    for (idx, nested) in message.nested_type.iter().enumerate() {
+        let mut nested_path = path.clone();
+        nested_path.push(idx);
+        nested_items.push(generate_message(nested, file, nested_path)?);
+    }
 
     let nested_enums: Vec<_> = message
         .enum_type
@@ -199,7 +203,7 @@ fn generate_message_impl(
     let accessors = generate_accessors(message, &has_bit_map)?;
 
     // Protobuf trait impl
-    let protobuf_impl = generate_protobuf_impl();
+    let protobuf_impl = generate_protobuf_impl(file.package.as_deref().unwrap_or(""), &path);
 
     // Tables
     let encoding_table = tables::generate_encoding_table(message, &has_bit_map)?;
@@ -249,11 +253,28 @@ fn generate_accessors(
 
         if is_repeated {
             // Repeated field accessor
+            if field.r#type == Some(Type::Message as i32)
+                || field.r#type == Some(Type::Group as i32)
+            {
+                // Repeated message field
+                let msg_type = rust_type_tokens(field);
+                let field_name_mut = format_ident!("{}_mut", field_name);
+                methods.push(quote! {
+                    pub fn #field_name(&self) -> &[&#msg_type::ProtoType] {
+                        unsafe { core::mem::transmute(self.#field_name.slice()) }
+                    }
+
+                    pub fn #field_name_mut(&mut self) -> &mut protocrap::containers::RepeatedField<&mut #msg_type::ProtoType> {
+                        unsafe { core::mem::transmute(&mut self.#field_name) }
+                    }
+                });
+                continue;
+            }
             let element_type = rust_element_type_tokens(field);
             let field_name_mut = format_ident!("{}_mut", field_name);
             methods.push(quote! {
                 pub fn #field_name(&self) -> &[#element_type] {
-                    unsafe { std::mem::transmute(self.#field_name.slice()) }
+                    unsafe { core::mem::transmute(self.#field_name.slice()) }
                 }
 
                 pub fn #field_name_mut(&mut self) -> &mut protocrap::containers::RepeatedField<#element_type> {
@@ -272,9 +293,9 @@ fn generate_accessors(
                     if let Some(&has_bit) = has_bit_map.get(&field.number.unwrap()) {
                         let setter_name = format_ident!("set_{}", field_name);
                         methods.push(quote! {
-                            pub fn #setter_name(&mut self, value: &str) {
+                            pub fn #setter_name(&mut self, value: &str, arena: &mut protocrap::arena::Arena) {
                                 self.as_object_mut().set_has_bit(#has_bit as u32);
-                                self.#field_name.assign(value);
+                                self.#field_name.assign(value, arena);
                             }
                         });
                     }
@@ -289,9 +310,9 @@ fn generate_accessors(
                     if let Some(&has_bit) = has_bit_map.get(&field.number.unwrap()) {
                         let setter_name = format_ident!("set_{}", field_name);
                         methods.push(quote! {
-                            pub fn #setter_name(&mut self, value: &[u8]) {
+                            pub fn #setter_name(&mut self, value: &[u8], arena: &mut protocrap::arena::Arena) {
                                 self.as_object_mut().set_has_bit(#has_bit as u32);
-                                self.#field_name.assign(value);
+                                self.#field_name.assign(value, arena);
                             }
                         });
                     }
@@ -314,7 +335,7 @@ fn generate_accessors(
                             let object = self.#field_name;
                             if object.0.is_null() {
                                 let new_object = protocrap::base::Object::create(
-                                    std::mem::size_of::<#msg_type::ProtoType>() as u32,
+                                    core::mem::size_of::<#msg_type::ProtoType>() as u32,
                                     arena
                                 );
                                 self.#field_name = protocrap::base::Message(new_object);
@@ -367,7 +388,46 @@ fn generate_accessors(
     Ok(quote! { #(#methods)* })
 }
 
-fn generate_protobuf_impl() -> TokenStream {
+fn build_descriptor_accessor(path: &[usize]) -> TokenStream {
+    if path.is_empty() {
+        panic!("Message path cannot be empty");
+    }
+
+    let mut accessor = quote! { Self::file_descriptor() };
+
+    for (level, &index) in path.iter().enumerate() {
+        let index_lit = proc_macro2::Literal::usize_unsuffixed(index);
+
+        if level == 0 {
+            // First level: file's message_type array
+            accessor = quote! {
+                #accessor.message_type().get(#index_lit).unwrap()
+            };
+        } else {
+            // Nested levels: nested_type array
+            accessor = quote! {
+                #accessor.nested_type().get(#index_lit).unwrap()
+            };
+        }
+    }
+
+    accessor
+}
+
+fn generate_protobuf_impl(package: &str, path: &[usize]) -> TokenStream {
+    let file_descriptor_ident = format_ident!("FILE_DESCRIPTOR_PROTO");
+
+    let file_descriptor_path = if package.is_empty() {
+        quote! { crate::#file_descriptor_ident }
+    } else {
+        let mut parts: Vec<_> = package.split('.').map(|s| format_ident!("{}", s)).collect();
+        parts.push(file_descriptor_ident);
+
+        quote! { crate::#(#parts)::* }
+    };
+
+    let message_descriptor_accessor = build_descriptor_accessor(path);
+
     quote! {
         impl protocrap::Protobuf for ProtoType {
             fn encoding_table() -> &'static [protocrap::encoding::TableEntry] {
@@ -376,6 +436,14 @@ fn generate_protobuf_impl() -> TokenStream {
 
             fn decoding_table() -> &'static protocrap::decoding::Table {
                 &DECODING_TABLE.0
+            }
+
+            fn file_descriptor() -> &'static protocrap::google::protobuf::FileDescriptorProto::ProtoType {
+                &#file_descriptor_path
+            }
+
+            fn descriptor_proto() -> &'static protocrap::google::protobuf::DescriptorProto::ProtoType {
+                #message_descriptor_accessor
             }
         }
     }

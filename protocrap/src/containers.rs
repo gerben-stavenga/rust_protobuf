@@ -1,9 +1,9 @@
-use std::alloc::{self, Layout};
-use std::fmt::Debug;
-use std::marker::PhantomData;
-use std::mem;
-use std::ops::{Deref, DerefMut};
-use std::ptr::{self, NonNull};
+use core::alloc::Layout;
+use core::fmt::Debug;
+use core::marker::PhantomData;
+use core::mem;
+use core::ops::{Deref, DerefMut};
+use core::ptr::{self, NonNull};
 
 #[derive(Copy, Clone)]
 pub(super) struct RawVec {
@@ -18,13 +18,13 @@ impl RawVec {
     const fn new() -> Self {
         // `NonNull::dangling()` doubles as "unallocated" and "zero-sized allocation"
         RawVec {
-            ptr: std::ptr::null_mut(),
+            ptr: core::ptr::null_mut(),
             cap: 0,
         }
     }
 
     #[inline(never)]
-    fn grow(mut self, new_cap: usize, layout: Layout) -> Self {
+    fn grow(mut self, new_cap: usize, layout: Layout, arena: &mut crate::arena::Arena) -> Self {
         // since we set the capacity to usize::MAX when T has size 0,
         // getting to here necessarily means the Vec is overfull.
         assert!(layout.size() != 0, "capacity overflow");
@@ -59,27 +59,32 @@ impl RawVec {
         );
 
         let new_ptr = if self.cap == 0 {
-            unsafe { alloc::alloc(new_layout) }
+            arena.alloc_raw(new_layout).as_ptr()
         } else {
-            let old_layout =
-                Layout::from_size_align(layout.size() * self.cap, layout.align()).unwrap();
-            let old_ptr = self.ptr;
-            unsafe { alloc::realloc(old_ptr, old_layout, new_layout.size()) }
+            let new_ptr = arena.alloc_raw(new_layout).as_ptr();
+            unsafe { core::ptr::copy_nonoverlapping(self.ptr, new_ptr, layout.size() * self.cap) };
+            new_ptr
         };
 
         // If allocation fails, `new_ptr` will be null, in which case we abort.
         if new_ptr.is_null() {
-            alloc::handle_alloc_error(new_layout);
+            // TODO: use a better error handling strategy
+            panic!("allocation failed");
         }
         self.ptr = new_ptr;
         self.cap = new_cap;
         self
     }
 
-    pub unsafe fn push_uninitialized(&mut self, len: &mut usize, layout: Layout) -> *mut u8 {
+    pub unsafe fn push_uninitialized(
+        &mut self,
+        len: &mut usize,
+        layout: Layout,
+        arena: &mut crate::arena::Arena,
+    ) -> *mut u8 {
         let l = *len;
         if l == self.cap {
-            *self = self.grow(0, layout);
+            *self = self.grow(0, layout, arena);
         }
 
         // Can't overflow, we'll OOM first.
@@ -100,20 +105,9 @@ impl RawVec {
         }
     }
 
-    pub fn reserve(&mut self, new_cap: usize, layout: Layout) {
+    pub fn reserve(&mut self, new_cap: usize, layout: Layout, arena: &mut crate::arena::Arena) {
         if new_cap > self.cap {
-            *self = self.grow(new_cap, layout);
-        }
-    }
-
-    #[inline(always)]
-    fn drop(self, layout: Layout) {
-        if self.cap != 0 && layout.size() != 0 {
-            unsafe {
-                let layout =
-                    Layout::from_size_align_unchecked(layout.size() * self.cap, layout.align());
-                alloc::dealloc(self.ptr, layout);
-            }
+            *self = self.grow(new_cap, layout, arena);
         }
     }
 }
@@ -121,7 +115,7 @@ impl RawVec {
 pub struct RepeatedField<T> {
     buf: RawVec,
     len: usize,
-    phantom: std::marker::PhantomData<T>,
+    phantom: core::marker::PhantomData<T>,
 }
 
 impl<T: PartialEq> PartialEq for RepeatedField<T> {
@@ -148,7 +142,7 @@ impl<T> Debug for RepeatedField<T>
 where
     T: Debug,
 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.as_ref().fmt(f)
     }
 }
@@ -166,16 +160,16 @@ impl<T> RepeatedField<T> {
         RepeatedField {
             buf: RawVec::new(),
             len: 0,
-            phantom: std::marker::PhantomData,
+            phantom: core::marker::PhantomData,
         }
     }
 
-    pub fn from_slice(slice: &[T]) -> Self
+    pub fn from_slice(slice: &[T], arena: &mut crate::arena::Arena) -> Self
     where
         T: Copy,
     {
         let mut rf = Self::new();
-        rf.append(slice);
+        rf.append(slice, arena);
         rf
     }
 
@@ -194,7 +188,7 @@ impl<T> RepeatedField<T> {
         if self.cap() == 0 {
             &[]
         } else {
-            unsafe { std::slice::from_raw_parts(self.ptr(), self.len) }
+            unsafe { core::slice::from_raw_parts(self.ptr(), self.len) }
         }
     }
 
@@ -202,15 +196,16 @@ impl<T> RepeatedField<T> {
         if self.cap() == 0 {
             &mut []
         } else {
-            unsafe { std::slice::from_raw_parts_mut(self.ptr(), self.len) }
+            unsafe { core::slice::from_raw_parts_mut(self.ptr(), self.len) }
         }
     }
 
-    pub fn push(&mut self, elem: T) {
+    pub fn push(&mut self, elem: T, arena: &mut crate::arena::Arena) {
         unsafe {
             (self
                 .buf
-                .push_uninitialized(&mut self.len, Layout::new::<T>()) as *mut T)
+                .push_uninitialized(&mut self.len, Layout::new::<T>(), arena)
+                as *mut T)
                 .write(elem)
         };
     }
@@ -223,11 +218,11 @@ impl<T> RepeatedField<T> {
         }
     }
 
-    pub fn insert(&mut self, index: usize, elem: T) {
+    pub fn insert(&mut self, index: usize, elem: T, arena: &mut crate::arena::Arena) {
         assert!(index <= self.len, "index out of bounds");
         let len = self.len;
         if len == self.cap() {
-            self.buf = self.buf.grow(0, Layout::new::<T>());
+            self.buf = self.buf.grow(0, Layout::new::<T>(), arena);
         }
 
         unsafe {
@@ -275,28 +270,28 @@ impl<T> RepeatedField<T> {
     }
 
     pub fn clear(&mut self) {
-        unsafe { std::ptr::drop_in_place(self.as_mut()) }
+        unsafe { core::ptr::drop_in_place(self.as_mut()) }
         self.len = 0
     }
 
-    pub fn reserve(&mut self, new_cap: usize) {
-        self.buf.reserve(new_cap, Layout::new::<T>());
+    pub fn reserve(&mut self, new_cap: usize, arena: &mut crate::arena::Arena) {
+        self.buf.reserve(new_cap, Layout::new::<T>(), arena);
     }
 
-    pub fn assign(&mut self, slice: &[T])
+    pub fn assign(&mut self, slice: &[T], arena: &mut crate::arena::Arena)
     where
         T: Copy,
     {
         self.clear();
-        self.append(slice);
+        self.append(slice, arena);
     }
 
-    pub fn append(&mut self, slice: &[T])
+    pub fn append(&mut self, slice: &[T], arena: &mut crate::arena::Arena)
     where
         T: Copy,
     {
         let old_len = self.len;
-        self.reserve(old_len + slice.len());
+        self.reserve(old_len + slice.len(), arena);
         unsafe {
             self.ptr()
                 .add(old_len)
@@ -417,13 +412,6 @@ impl<T> DoubleEndedIterator for IntoIter<T> {
     }
 }
 
-impl<T> Drop for IntoIter<T> {
-    fn drop(&mut self) {
-        for _ in &mut *self {}
-        self.buf.drop(Layout::new::<T>())
-    }
-}
-
 pub struct Drain<'a, T: 'a> {
     vec: PhantomData<&'a mut RepeatedField<T>>,
     iter: RawValIter<T>,
@@ -466,11 +454,11 @@ impl String {
     }
 
     pub fn as_str(&self) -> &str {
-        unsafe { std::str::from_utf8_unchecked(self.0.as_ref()) }
+        unsafe { core::str::from_utf8_unchecked(self.0.as_ref()) }
     }
 
-    pub fn assign(&mut self, s: &str) {
-        self.0.assign(s.as_bytes());
+    pub fn assign(&mut self, s: &str, arena: &mut crate::arena::Arena) {
+        self.0.assign(s.as_bytes(), arena);
     }
 }
 
@@ -478,10 +466,5 @@ impl Deref for String {
     type Target = str;
     fn deref(&self) -> &str {
         self.as_str()
-    }
-}
-impl From<&str> for String {
-    fn from(s: &str) -> Self {
-        String(RepeatedField::from_slice(s.as_bytes()))
     }
 }
