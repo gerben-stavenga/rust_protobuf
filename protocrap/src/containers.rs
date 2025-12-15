@@ -148,11 +148,11 @@ where
 }
 
 impl<T> RepeatedField<T> {
-    fn ptr(&self) -> *mut T {
+    const fn ptr(&self) -> *mut T {
         self.buf.ptr as *mut T
     }
 
-    fn cap(&self) -> usize {
+    const fn cap(&self) -> usize {
         self.buf.cap
     }
 
@@ -184,7 +184,7 @@ impl<T> RepeatedField<T> {
         }
     }
 
-    pub fn slice(&self) -> &[T] {
+    pub const fn slice(&self) -> &[T] {
         if self.cap() == 0 {
             &[]
         } else {
@@ -453,8 +453,8 @@ impl String {
         String(RepeatedField::from_static(s.as_bytes()))
     }
 
-    pub fn as_str(&self) -> &str {
-        unsafe { core::str::from_utf8_unchecked(self.0.as_ref()) }
+    pub const fn as_str(&self) -> &str {
+        unsafe { core::str::from_utf8_unchecked(self.0.slice()) }
     }
 
     pub fn assign(&mut self, s: &str, arena: &mut crate::arena::Arena) {

@@ -21,8 +21,13 @@ pub mod serde;
 pub trait Protobuf {
     fn encoding_table() -> &'static [encoding::TableEntry];
     fn decoding_table() -> &'static decoding::Table;
-    fn file_descriptor() -> &'static google::protobuf::FileDescriptorProto::ProtoType;
-    fn descriptor_proto() -> &'static google::protobuf::DescriptorProto::ProtoType;
+    fn descriptor_proto() -> &'static google::protobuf::DescriptorProto::ProtoType {
+        unsafe {
+            *(Self::encoding_table().as_ptr()
+                as *const &'static google::protobuf::DescriptorProto::ProtoType)
+                .sub(1)
+        }
+    }
 
     fn as_object(&self) -> &base::Object {
         unsafe { &*(self as *const Self as *const base::Object) }

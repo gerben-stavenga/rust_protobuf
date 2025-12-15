@@ -111,14 +111,14 @@ fn generate_enum(enum_desc: &EnumDescriptorProto) -> Result<TokenStream> {
         }
 
         impl #name {
-            pub fn from_i32(value: i32) -> Option<Self> {
+            pub const fn from_i32(value: i32) -> Option<Self> {
                 match value {
                     #(#from_i32_arms,)*
                     _ => None,
                 }
             }
 
-            pub fn to_i32(self) -> i32 {
+            pub const fn to_i32(self) -> i32 {
                 self as i32
             }
         }
@@ -203,11 +203,25 @@ fn generate_message_impl(
     let accessors = generate_accessors(message, &has_bit_map)?;
 
     // Protobuf trait impl
-    let protobuf_impl = generate_protobuf_impl(file.package.as_deref().unwrap_or(""), &path);
+    let protobuf_impl = generate_protobuf_impl();
 
     // Tables
     let encoding_table = tables::generate_encoding_table(message, &has_bit_map)?;
     let decoding_table = tables::generate_decoding_table(message, &has_bit_map)?;
+
+    let file_descriptor_ident = format_ident!("FILE_DESCRIPTOR_PROTO");
+
+    let package = file.package.as_deref().unwrap_or("");
+    let file_descriptor_path = if package.is_empty() {
+        quote! { crate::#file_descriptor_ident }
+    } else {
+        let mut parts: Vec<_> = package.split('.').map(|s| format_ident!("{}", s)).collect();
+        parts.push(file_descriptor_ident);
+
+        quote! { crate::#(#parts)::* }
+    };
+
+    let message_descriptor_accessor = build_descriptor_accessor(&path);
 
     Ok(quote! {
         #(#nested_items)*
@@ -230,6 +244,15 @@ fn generate_message_impl(
                     #(#struct_field_names,)*
                 }
             }
+
+            const fn file_descriptor() -> &'static protocrap::google::protobuf::FileDescriptorProto::ProtoType {
+                &#file_descriptor_path
+            }
+
+            const fn descriptor_proto() -> &'static protocrap::google::protobuf::DescriptorProto::ProtoType {
+                #message_descriptor_accessor
+            }
+
             #accessors
         }
 
@@ -260,7 +283,7 @@ fn generate_accessors(
                 let msg_type = rust_type_tokens(field);
                 let field_name_mut = format_ident!("{}_mut", field_name);
                 methods.push(quote! {
-                    pub fn #field_name(&self) -> &[&#msg_type::ProtoType] {
+                    pub const fn #field_name(&self) -> &[&#msg_type::ProtoType] {
                         unsafe { core::mem::transmute(self.#field_name.slice()) }
                     }
 
@@ -273,7 +296,7 @@ fn generate_accessors(
             let element_type = rust_element_type_tokens(field);
             let field_name_mut = format_ident!("{}_mut", field_name);
             methods.push(quote! {
-                pub fn #field_name(&self) -> &[#element_type] {
+                pub const fn #field_name(&self) -> &[#element_type] {
                     unsafe { core::mem::transmute(self.#field_name.slice()) }
                 }
 
@@ -285,8 +308,8 @@ fn generate_accessors(
             match field.r#type() {
                 Type::String => {
                     methods.push(quote! {
-                        pub fn #field_name(&self) -> &str {
-                            &self.#field_name
+                        pub const fn #field_name(&self) -> &str {
+                            self.#field_name.as_str()
                         }
                     });
 
@@ -302,8 +325,8 @@ fn generate_accessors(
                 }
                 Type::Bytes => {
                     methods.push(quote! {
-                        pub fn #field_name(&self) -> &[u8] {
-                            &self.#field_name
+                        pub const fn #field_name(&self) -> &[u8] {
+                            self.#field_name.slice()
                         }
                     });
 
@@ -320,7 +343,7 @@ fn generate_accessors(
                 Type::Message | Type::Group => {
                     let msg_type = rust_type_tokens(field);
                     methods.push(quote! {
-                        pub fn #field_name(&self) -> Option<&#msg_type::ProtoType> {
+                        pub const fn #field_name(&self) -> Option<&#msg_type::ProtoType> {
                             if self.#field_name.0.is_null() {
                                 None
                             } else {
@@ -347,7 +370,7 @@ fn generate_accessors(
                 Type::Enum => {
                     let enum_type = rust_type_tokens(field);
                     methods.push(quote! {
-                        pub fn #field_name(&self) -> Option<#enum_type> {
+                        pub const fn #field_name(&self) -> Option<#enum_type> {
                             #enum_type::from_i32(self.#field_name)
                         }
                     });
@@ -366,7 +389,7 @@ fn generate_accessors(
                     // Scalar types
                     let return_type = rust_scalar_type_tokens(field);
                     methods.push(quote! {
-                        pub fn #field_name(&self) -> #return_type {
+                        pub const fn #field_name(&self) -> #return_type {
                             self.#field_name
                         }
                     });
@@ -401,12 +424,12 @@ fn build_descriptor_accessor(path: &[usize]) -> TokenStream {
         if level == 0 {
             // First level: file's message_type array
             accessor = quote! {
-                #accessor.message_type().get(#index_lit).unwrap()
+                #accessor.message_type()[#index_lit]
             };
         } else {
             // Nested levels: nested_type array
             accessor = quote! {
-                #accessor.nested_type().get(#index_lit).unwrap()
+                #accessor.nested_type()[#index_lit]
             };
         }
     }
@@ -414,37 +437,17 @@ fn build_descriptor_accessor(path: &[usize]) -> TokenStream {
     accessor
 }
 
-fn generate_protobuf_impl(package: &str, path: &[usize]) -> TokenStream {
-    let file_descriptor_ident = format_ident!("FILE_DESCRIPTOR_PROTO");
-
-    let file_descriptor_path = if package.is_empty() {
-        quote! { crate::#file_descriptor_ident }
-    } else {
-        let mut parts: Vec<_> = package.split('.').map(|s| format_ident!("{}", s)).collect();
-        parts.push(file_descriptor_ident);
-
-        quote! { crate::#(#parts)::* }
-    };
-
-    let message_descriptor_accessor = build_descriptor_accessor(path);
-
+fn generate_protobuf_impl() -> TokenStream {
     quote! {
         impl protocrap::Protobuf for ProtoType {
             fn encoding_table() -> &'static [protocrap::encoding::TableEntry] {
-                &ENCODING_TABLE.0
+                &ENCODING_TABLE.1
             }
 
             fn decoding_table() -> &'static protocrap::decoding::Table {
                 &DECODING_TABLE.0
             }
 
-            fn file_descriptor() -> &'static protocrap::google::protobuf::FileDescriptorProto::ProtoType {
-                &#file_descriptor_path
-            }
-
-            fn descriptor_proto() -> &'static protocrap::google::protobuf::DescriptorProto::ProtoType {
-                #message_descriptor_accessor
-            }
         }
     }
 }

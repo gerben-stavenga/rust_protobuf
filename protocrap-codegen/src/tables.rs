@@ -26,7 +26,7 @@ pub fn generate_encoding_table(
             quote! {
                 protocrap::encoding::AuxTableEntry {
                     offset: core::mem::offset_of!(ProtoType, #field_name),
-                    child_table: &#child_table::ENCODING_TABLE.0,
+                    child_table: &#child_table::ENCODING_TABLE.1,
                 }
             }
         })
@@ -46,7 +46,11 @@ pub fn generate_encoding_table(
                 protocrap::encoding::TableEntry {
                     has_bit: #has_bit,
                     kind: #kind,
-                    offset: (core::mem::offset_of!(protocrap::encoding::TableWithEntries<#field_count, #num_aux_entries>, 1) + #aux_index * core::mem::size_of::<protocrap::encoding::AuxTableEntry>()) as u16,
+                    offset: (
+                        core::mem::offset_of!(protocrap::encoding::TableWithEntries<#field_count, #num_aux_entries>, 2) + 
+                        #aux_index * core::mem::size_of::<protocrap::encoding::AuxTableEntry>() - 
+                        core::mem::offset_of!(protocrap::encoding::TableWithEntries<#field_count, #num_aux_entries>, 1)
+                    ) as u16,
                     encoded_tag: #encoded_tag,
                 }
             }
@@ -64,11 +68,15 @@ pub fn generate_encoding_table(
 
     Ok(quote! {
         pub static ENCODING_TABLE: protocrap::encoding::TableWithEntries<#field_count, #num_aux_entries> =
-            protocrap::encoding::TableWithEntries([
-                #(#entries,)*
-            ], [
-                #(#aux_entries,)*
-            ]);
+            protocrap::encoding::TableWithEntries(
+                    &ProtoType::descriptor_proto(),
+                    [
+                        #(#entries,)*
+                    ],
+                    [
+                        #(#aux_entries,)*
+                    ]
+            );
     })
 }
 

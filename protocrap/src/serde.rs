@@ -1,22 +1,49 @@
-use serde::ser::SerializeStruct;
+use serde::ser::{SerializeSeq, SerializeStruct};
 
 use crate::base::{Message, Object};
+use crate::encoding::aux_entry;
 use crate::google::protobuf::DescriptorProto;
 use crate::google::protobuf::FieldDescriptorProto::{Label, Type};
-use crate::wire;
 use crate::{Protobuf, encoding};
 
-pub struct SerdeProtobuf<'a, T: Protobuf>(pub &'a T);
+pub struct SerdeProtobuf<'a>(
+    pub &'a Object,
+    pub &'static [encoding::TableEntry],
+    pub &'static DescriptorProto::ProtoType,
+);
 
-impl<'a, T: Protobuf> serde::Serialize for SerdeProtobuf<'a, T> {
+pub struct SerdeProtobufSlice<'a>(
+    pub &'a [Message],
+    pub &'static [encoding::TableEntry],
+    pub &'static DescriptorProto::ProtoType,
+);
+
+impl<'a> SerdeProtobuf<'a> {
+    pub fn new<T: Protobuf>(msg: &'a T) -> Self {
+        SerdeProtobuf(msg.as_object(), T::encoding_table(), T::descriptor_proto())
+    }
+}
+
+impl<'a> serde::Serialize for SerdeProtobuf<'a> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let object = self.0.as_object();
-        let table = T::encoding_table();
-        let descriptor = T::descriptor_proto();
-        serde_serialize(object, table, descriptor, serializer)
+        serde_serialize(self.0, self.1, self.2, serializer)
+    }
+}
+
+impl<'a> serde::Serialize for SerdeProtobufSlice<'a> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut seq_serializer = serializer.serialize_seq(Some(self.0.len()))?;
+        for msg in self.0 {
+            let serde_msg = SerdeProtobuf(unsafe { &*msg.0 }, self.1, self.2);
+            seq_serializer.serialize_element(&serde_msg)?;
+        }
+        seq_serializer.end()
     }
 }
 
@@ -102,7 +129,12 @@ where
                     struct_serializer.serialize_field(field_name, slice)?;
                 }
                 Type::TYPE_MESSAGE | Type::TYPE_GROUP => {
-                    struct_serializer.serialize_field(field_name, &[] as &[i32])?;
+                    let (offset, child_table) = aux_entry(entry.offset as usize, table);
+                    let slice = value.get_slice::<crate::base::Message>(offset);
+                    let serde_slice = SerdeProtobufSlice(slice, child_table, unsafe {
+                        *(child_table.as_ptr() as *const &'static DescriptorProto::ProtoType).sub(1)
+                    });
+                    struct_serializer.serialize_field(field_name, &serde_slice)?;
                     continue;
                 }
             },
@@ -188,7 +220,18 @@ where
                     struct_serializer.serialize_field(field_name, &v)?;
                 }
                 Type::TYPE_MESSAGE | Type::TYPE_GROUP => {
-                    struct_serializer.serialize_field(field_name, &None::<i32>)?;
+                    let (offset, child_table) = aux_entry(entry.offset as usize, table);
+                    let message = value.get::<crate::base::Message>(offset).0;
+                    let v = if message.is_null() {
+                        None
+                    } else {
+                        let v = SerdeProtobuf(unsafe { &*message }, child_table, unsafe {
+                            *(child_table.as_ptr() as *const &'static DescriptorProto::ProtoType)
+                                .sub(1)
+                        });
+                        Some(v)
+                    };
+                    struct_serializer.serialize_field(field_name, &v)?;
                 }
             },
         }

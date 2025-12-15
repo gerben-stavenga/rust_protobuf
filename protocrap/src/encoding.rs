@@ -4,6 +4,7 @@ use crate::{
     Protobuf,
     base::Object,
     containers::Bytes,
+    google,
     utils::{Stack, StackWithStorage},
     wire::{FieldKind, SLOP_SIZE, WriteCursor, zigzag_encode},
 };
@@ -27,12 +28,17 @@ pub struct AuxTableEntry {
 unsafe impl Send for AuxTableEntry {}
 unsafe impl Sync for AuxTableEntry {}
 
+#[repr(C)]
 pub struct TableWithEntries<const N: usize, const M: usize>(
+    pub &'static google::protobuf::DescriptorProto::ProtoType,
     pub [TableEntry; N],
     pub [AuxTableEntry; M],
 );
 
-fn aux_entry<'a>(offset: usize, table: *const [TableEntry]) -> (usize, &'a [TableEntry]) {
+pub(crate) fn aux_entry<'a>(
+    offset: usize,
+    table: *const [TableEntry],
+) -> (usize, &'a [TableEntry]) {
     unsafe {
         let thin_ptr = table as *const u8;
         let AuxTableEntry {
