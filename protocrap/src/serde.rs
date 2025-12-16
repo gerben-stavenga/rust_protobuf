@@ -469,7 +469,7 @@ impl<'de, 'arena, 'alloc, 'b> serde::de::Visitor<'de> for ProtobufVisitor<'arena
                         obj.set::<crate::containers::Bytes>(entry.offset(), entry.has_bit_idx(), b);
                     }
                     Type::TYPE_MESSAGE | Type::TYPE_GROUP => {
-                        let &decoding::AuxTableEntry { offset, child_table }  = table.aux_entry(entry.offset());
+                        let &decoding::AuxTableEntry { offset, child_table }  = table.aux_entry(field.number() as u32);
                         let child_table = unsafe {
                              &*child_table
                         };

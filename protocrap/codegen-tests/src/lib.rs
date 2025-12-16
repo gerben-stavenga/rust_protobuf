@@ -118,6 +118,8 @@ fn test_serde_serialization() {
     let serialized = serde_json::to_string(&protocrap::serde::SerdeProtobuf::new(&protocrap_msg))
         .expect("should serialize");
 
+    println!("Serialized JSON: {}", serialized);
+
     let deserialized = {
         let mut deserializer = serde_json::Deserializer::from_str(&serialized);
         let seed = protocrap::serde::SerdeDeserialize::<Test::ProtoType>::new(&mut arena);
