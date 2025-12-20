@@ -95,7 +95,7 @@ where
         let field_name = field.name();
         match field.label().unwrap() {
             Label::LABEL_REPEATED => {
-                if value.get_slice::<()>(entry.offset as usize).is_empty() {
+                if field.r#type().unwrap() != Type::TYPE_MESSAGE && value.get_slice::<()>(entry.offset as usize).is_empty() {
                     struct_serializer.skip_field(field_name)?;
                     continue;
                 }
@@ -144,6 +144,10 @@ where
                     Type::TYPE_MESSAGE | Type::TYPE_GROUP => {
                         let (offset, child_table) = aux_entry(entry.offset as usize, table);
                         let slice = value.get_slice::<crate::base::Message>(offset);
+                        if slice.is_empty() {
+                            struct_serializer.skip_field(field_name)?;
+                            continue;
+                        }
                         let serde_slice = SerdeProtobufSlice(slice, child_table, unsafe {
                             *(child_table.as_ptr() as *const &'static DescriptorProto::ProtoType)
                                 .sub(1)

@@ -149,35 +149,6 @@ impl ReadCursor {
     pub fn peek_tag(&self) -> u32 {
         unsafe { core::ptr::read_unaligned(self.0.as_ptr() as *const u16) as u32 }
     }
-
-    #[inline(always)]
-    pub fn parse_one_byte_tag(&mut self, tag: u32, expected_wire_type: u32) -> Option<u32> {
-        // The kind table guarantees the 4 field number bits are values to a correct field number.
-        // Given that the table
-        if core::hint::likely(tag & 0x87 == expected_wire_type) {
-            *self += 1;
-            Some((tag & 0xFF) >> 3)
-        } else {
-            None
-        }
-    }
-
-    #[inline(always)]
-    pub fn parse_two_byte_tag(
-        &mut self,
-        tag: u32,
-        mask: u32,
-        expected_wire_type: u32,
-    ) -> Option<u32> {
-        // The kind table guarantees that all non-masked bits are expected. The masked bits need to match
-        // the expected wire type.
-        if core::hint::likely(tag & !mask == expected_wire_type) {
-            *self += 2;
-            Some((tag & (tag as i8 as u32)) >> 3)
-        } else {
-            None
-        }
-    }
 }
 
 impl PartialEq<NonNull<u8>> for ReadCursor {
@@ -325,6 +296,7 @@ pub enum FieldKind {
     Varint32,
     Varint64Zigzag,
     Varint32Zigzag,
+    Bool,
     Fixed64,
     Fixed32,
     Bytes,
@@ -334,6 +306,7 @@ pub enum FieldKind {
     RepeatedVarint32,
     RepeatedVarint64Zigzag,
     RepeatedVarint32Zigzag,
+    RepeatedBool,
     RepeatedFixed64,
     RepeatedFixed32,
     RepeatedBytes,

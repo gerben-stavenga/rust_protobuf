@@ -1,10 +1,10 @@
 // protocrap-codegen/src/lib.rs
-
+#![feature(allocator_api)]
 use std::path::Path;
 
 use anyhow::Result;
-use prost::Message;
-use prost_types::FileDescriptorSet;
+use protocrap::google::protobuf::FileDescriptorSet::ProtoType as FileDescriptorSet;
+use protocrap::ProtobufExt;
 
 mod generator;
 mod names;
@@ -14,7 +14,11 @@ mod tables;
 /// Generate Rust code from protobuf descriptor bytes
 pub fn generate(descriptor_bytes: &[u8]) -> Result<String> {
     // Parse descriptor with prost
-    let file_set = FileDescriptorSet::decode(descriptor_bytes)?;
+    let mut arena = protocrap::arena::Arena::new(&std::alloc::Global);
+    let mut file_set = FileDescriptorSet::default();
+    if !file_set.decode_flat::<100>(&mut arena, descriptor_bytes) {
+        return Err(anyhow::anyhow!("Failed to decode file descriptor set"));
+    }
 
     // Generate tokens
     let tokens = generator::generate_file_set(&file_set)?;

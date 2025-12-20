@@ -7,13 +7,20 @@ use anyhow::Result;
 use proc_macro2::TokenStream;
 use prost_reflect::DescriptorPool;
 use prost_reflect::DynamicMessage;
-use prost_types::*;
 use quote::{format_ident, quote};
+use protocrap::google::protobuf::FileDescriptorSet::ProtoType as FileDescriptorSet;
+use protocrap::google::protobuf::FileDescriptorProto::ProtoType as FileDescriptorProto;
+use protocrap::google::protobuf::DescriptorProto::ProtoType as DescriptorProto;
+use protocrap::google::protobuf::FieldDescriptorProto::ProtoType as FieldDescriptorProto;
+use protocrap::google::protobuf::FieldDescriptorProto::{Type, Label};
+use protocrap::google::protobuf::EnumDescriptorProto::ProtoType as EnumDescriptorProto;
+
+
 
 pub fn generate_file_set(file_set: &FileDescriptorSet) -> Result<TokenStream> {
     let mut items = Vec::new();
 
-    for file in &file_set.file {
+    for file in file_set.file() {
         items.push(generate_file(file)?);
     }
 
@@ -29,20 +36,21 @@ fn generate_file(file: &FileDescriptorProto) -> Result<TokenStream> {
     let mut items = Vec::new();
 
     // Generate enums
-    for enum_type in &file.enum_type {
+    for enum_type in file.enum_type() {
         items.push(generate_enum(enum_type)?);
     }
 
     // Generate messages
-    for (idx, message) in file.message_type.iter().enumerate() {
+    for (idx, message) in file.message_type().iter().enumerate() {
         let mut path = Vec::new();
         path.push(idx);
         items.push(generate_message(message, file, path)?);
     }
 
     let file_descriptor = {
-        use prost::Message;
-        let encoded = file.encode_to_vec();
+        use protocrap::ProtobufExt;
+        let mut buffer = vec![0; 100000];
+        let encoded = file.encode_flat::<100>(&mut buffer)?;
 
         // Get the descriptor from global pool
         let pool = DescriptorPool::global();
@@ -53,7 +61,7 @@ fn generate_file(file: &FileDescriptorProto) -> Result<TokenStream> {
             ))?;
 
         // Decode as DynamicMessage
-        let dynamic = DynamicMessage::decode(descriptor.clone(), &encoded[..])?;
+        let dynamic = DynamicMessage::decode(descriptor.clone(), encoded)?;
 
         // Generate static initializer
         static_gen::generate_static_dynamic(&dynamic)?
@@ -62,7 +70,7 @@ fn generate_file(file: &FileDescriptorProto) -> Result<TokenStream> {
         pub static FILE_DESCRIPTOR_PROTO: protocrap::google::protobuf::FileDescriptorProto::ProtoType = #file_descriptor;
     });
     let mut res = quote! { #(#items)* };
-    for namespace in file.package.as_deref().unwrap_or(&"").split('.').rev() {
+    for namespace in file.package().split('.').rev() {
         if namespace.is_empty() {
             continue;
         }
@@ -77,27 +85,27 @@ fn generate_file(file: &FileDescriptorProto) -> Result<TokenStream> {
     Ok(res)
 }
 
-fn generate_enum(enum_desc: &EnumDescriptorProto) -> Result<TokenStream> {
-    let name = format_ident!("{}", enum_desc.name.as_ref().unwrap());
+fn generate_enum(enum_desc: &&EnumDescriptorProto) -> Result<TokenStream> {
+    let name = format_ident!("{}", enum_desc.name());
 
     // Enum variants
     let variants: Vec<_> = enum_desc
-        .value
+        .value()
         .iter()
         .map(|v| {
-            let variant_name = format_ident!("{}", v.name.as_ref().unwrap());
-            let number = v.number.unwrap();
+            let variant_name = format_ident!("{}", v.name());
+            let number = v.number();
             quote! { #variant_name = #number }
         })
         .collect();
 
     // from_i32 match arms
     let from_i32_arms: Vec<_> = enum_desc
-        .value
+        .value()
         .iter()
         .map(|v| {
-            let variant_name = format_ident!("{}", v.name.as_ref().unwrap());
-            let number = v.number.unwrap();
+            let variant_name = format_ident!("{}", v.name());
+            let number = v.number();
             quote! { #number => Some(Self::#variant_name) }
         })
         .collect();
@@ -152,20 +160,20 @@ fn generate_message_impl(
     // Nested types first
 
     let mut nested_items = Vec::new();
-    for (idx, nested) in message.nested_type.iter().enumerate() {
+    for (idx, nested) in message.nested_type().iter().enumerate() {
         let mut nested_path = path.clone();
         nested_path.push(idx);
         nested_items.push(generate_message(nested, file, nested_path)?);
     }
 
     let nested_enums: Vec<_> = message
-        .enum_type
+        .enum_type()
         .iter()
         .map(generate_enum)
         .collect::<Result<Vec<_>, _>>()?;
 
     // Calculate has bits
-    let has_bit_fields: Vec<_> = message.field.iter().filter(|f| needs_has_bit(f)).collect();
+    let has_bit_fields: Vec<_> = message.field().iter().filter(|f| needs_has_bit(f)).collect();
 
     let has_bits_count = has_bit_fields.len();
     let has_bits_words = (has_bits_count + 31) / 32;
@@ -173,10 +181,10 @@ fn generate_message_impl(
 
     // Struct fields
     let struct_fields: Vec<_> = message
-        .field
+        .field()
         .iter()
-        .map(|field| {
-            let field_name = format_ident!("{}", sanitize_field_name(field.name.as_ref().unwrap()));
+        .map(|&field| {
+            let field_name = format_ident!("{}", sanitize_field_name(field.name()));
             let field_type = rust_field_type_tokens(field);
             (
                 field_name.clone(),
@@ -196,7 +204,7 @@ fn generate_message_impl(
     let has_bit_map: std::collections::HashMap<_, _> = has_bit_fields
         .iter()
         .enumerate()
-        .map(|(i, f)| (f.number.unwrap(), i))
+        .map(|(i, f)| (f.number(), i))
         .collect();
 
     // Accessor methods
@@ -211,7 +219,7 @@ fn generate_message_impl(
 
     let file_descriptor_ident = format_ident!("FILE_DESCRIPTOR_PROTO");
 
-    let package = file.package.as_deref().unwrap_or("");
+    let package = file.package();
     let file_descriptor_path = if package.is_empty() {
         quote! { crate::#file_descriptor_ident }
     } else {
@@ -266,18 +274,16 @@ fn generate_accessors(
     message: &DescriptorProto,
     has_bit_map: &std::collections::HashMap<i32, usize>,
 ) -> Result<TokenStream> {
-    use field_descriptor_proto::{Label, Type};
-
     let mut methods = Vec::new();
 
-    for field in &message.field {
-        let field_name = format_ident!("{}", sanitize_field_name(field.name.as_ref().unwrap()));
-        let is_repeated = field.label() == Label::Repeated;
+    for &field in message.field() {
+        let field_name = format_ident!("{}", sanitize_field_name(field.name()));
+        let is_repeated = field.label().unwrap() == Label::LABEL_REPEATED;
 
         if is_repeated {
             // Repeated field accessor
-            if field.r#type == Some(Type::Message as i32)
-                || field.r#type == Some(Type::Group as i32)
+            if field.r#type() == Some(Type::TYPE_MESSAGE)
+                || field.r#type() == Some(Type::TYPE_GROUP)
             {
                 // Repeated message field
                 let msg_type = rust_type_tokens(field);
@@ -305,15 +311,15 @@ fn generate_accessors(
                 }
             });
         } else {
-            match field.r#type() {
-                Type::String => {
+            match field.r#type().unwrap() {
+                Type::TYPE_STRING => {
                     methods.push(quote! {
                         pub const fn #field_name(&self) -> &str {
                             self.#field_name.as_str()
                         }
                     });
 
-                    if let Some(&has_bit) = has_bit_map.get(&field.number.unwrap()) {
+                    if let Some(&has_bit) = has_bit_map.get(&field.number()) {
                         let setter_name = format_ident!("set_{}", field_name);
                         methods.push(quote! {
                             pub fn #setter_name(&mut self, value: &str, arena: &mut protocrap::arena::Arena) {
@@ -323,14 +329,14 @@ fn generate_accessors(
                         });
                     }
                 }
-                Type::Bytes => {
+                Type::TYPE_BYTES => {
                     methods.push(quote! {
                         pub const fn #field_name(&self) -> &[u8] {
                             self.#field_name.slice()
                         }
                     });
 
-                    if let Some(&has_bit) = has_bit_map.get(&field.number.unwrap()) {
+                    if let Some(&has_bit) = has_bit_map.get(&field.number()) {
                         let setter_name = format_ident!("set_{}", field_name);
                         methods.push(quote! {
                             pub fn #setter_name(&mut self, value: &[u8], arena: &mut protocrap::arena::Arena) {
@@ -340,7 +346,7 @@ fn generate_accessors(
                         });
                     }
                 }
-                Type::Message | Type::Group => {
+                Type::TYPE_MESSAGE | Type::TYPE_GROUP => {
                     let msg_type = rust_type_tokens(field);
                     methods.push(quote! {
                         pub const fn #field_name(&self) -> Option<&#msg_type::ProtoType> {
@@ -367,7 +373,7 @@ fn generate_accessors(
                         }
                     });
                 }
-                Type::Enum => {
+                Type::TYPE_ENUM => {
                     let enum_type = rust_type_tokens(field);
                     methods.push(quote! {
                         pub const fn #field_name(&self) -> Option<#enum_type> {
@@ -375,7 +381,7 @@ fn generate_accessors(
                         }
                     });
 
-                    if let Some(&has_bit) = has_bit_map.get(&field.number.unwrap()) {
+                    if let Some(&has_bit) = has_bit_map.get(&field.number()) {
                         let setter_name = format_ident!("set_{}", field_name);
                         methods.push(quote! {
                             pub fn #setter_name(&mut self, value: #enum_type) {
@@ -394,7 +400,7 @@ fn generate_accessors(
                         }
                     });
 
-                    if let Some(&has_bit) = has_bit_map.get(&field.number.unwrap()) {
+                    if let Some(&has_bit) = has_bit_map.get(&field.number()) {
                         let setter_name = format_ident!("set_{}", field_name);
                         methods.push(quote! {
                             pub fn #setter_name(&mut self, value: #return_type) {
@@ -453,11 +459,9 @@ fn generate_protobuf_impl() -> TokenStream {
 }
 
 fn needs_has_bit(field: &FieldDescriptorProto) -> bool {
-    use field_descriptor_proto::{Label, Type};
-
-    if field.label() == Label::Repeated {
+    if field.label().unwrap() == Label::LABEL_REPEATED {
         return false;
     }
 
-    !matches!(field.r#type(), Type::Message | Type::Group)
+    !matches!(field.r#type().unwrap(), Type::TYPE_MESSAGE | Type::TYPE_GROUP)
 }

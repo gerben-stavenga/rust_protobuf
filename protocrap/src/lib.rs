@@ -12,8 +12,7 @@ pub mod decoding;
 pub mod encoding;
 
 use crate as protocrap;
-
-include!(concat!(env!("OUT_DIR"), "/descriptor.pc.rs"));
+include!("descriptor.pc.rs");
 
 #[cfg(feature = "serde_support")]
 pub mod serde;

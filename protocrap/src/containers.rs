@@ -5,6 +5,7 @@ use core::mem;
 use core::ops::{Deref, DerefMut};
 use core::ptr::{self, NonNull};
 
+#[repr(C)]
 #[derive(Copy, Clone)]
 pub(super) struct RawVec {
     ptr: *mut u8,
@@ -112,6 +113,7 @@ impl RawVec {
     }
 }
 
+#[repr(C)]
 pub struct RepeatedField<T> {
     buf: RawVec,
     len: usize,
@@ -442,6 +444,7 @@ impl<'a, T> Drop for Drain<'a, T> {
 
 pub type Bytes = RepeatedField<u8>;
 
+#[repr(C)]
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct String(Bytes);
 impl String {

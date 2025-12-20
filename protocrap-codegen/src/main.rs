@@ -22,6 +22,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         fs::read(&args[1])?
     };
 
+    println!("✅ Read descriptor ({} bytes)", descriptor_bytes.len());
+
     // Generate code
     let code = protocrap_codegen::generate(&descriptor_bytes)?;
 

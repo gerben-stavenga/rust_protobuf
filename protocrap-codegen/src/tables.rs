@@ -3,26 +3,28 @@
 use crate::names::{rust_type_tokens, sanitize_field_name};
 use anyhow::Result;
 use proc_macro2::TokenStream;
-use prost_types::field_descriptor_proto::{Label, Type};
-use prost_types::{DescriptorProto, FieldDescriptorProto};
+use protocrap::google::protobuf::DescriptorProto::ProtoType as DescriptorProto;
+use protocrap::google::protobuf::FieldDescriptorProto::ProtoType as FieldDescriptorProto;
+use protocrap::google::protobuf::FieldDescriptorProto::{Type, Label};
+
 use quote::{format_ident, quote};
 
 pub fn generate_encoding_table(
     message: &DescriptorProto,
     has_bit_map: &std::collections::HashMap<i32, usize>,
 ) -> Result<TokenStream> {
-    let field_count = message.field.len();
+    let field_count = message.field().len();
 
     let mut aux_index_map = std::collections::HashMap::<i32, usize>::new();
     let aux_entries: Vec<_> = message
-        .field
+        .field()
         .iter()
-        .filter(|f| matches!(f.r#type(), Type::Message | Type::Group))
+        .filter(|f| matches!(f.r#type().unwrap(), Type::TYPE_MESSAGE | Type::TYPE_GROUP))
         .map(|field| {
-            let field_name = format_ident!("{}", sanitize_field_name(field.name.as_ref().unwrap()));
+            let field_name = format_ident!("{}", sanitize_field_name(field.name()));
             let child_table = rust_type_tokens(field);
             let num_aux = aux_index_map.len();
-            aux_index_map.insert(field.number.unwrap(), num_aux);
+            aux_index_map.insert(field.number(), num_aux);
             quote! {
                 protocrap::encoding::AuxTableEntry {
                     offset: core::mem::offset_of!(ProtoType, #field_name),
@@ -33,14 +35,14 @@ pub fn generate_encoding_table(
         .collect();
     let num_aux_entries = aux_entries.len();
 
-    let entries: Vec<_> = message.field.iter().map(|field| {
-        let field_name = format_ident!("{}", sanitize_field_name(field.name.as_ref().unwrap()));
-        let has_bit = has_bit_map.get(&field.number.unwrap()).copied().unwrap_or(0) as u8;
+    let entries: Vec<_> = message.field().iter().map(|field| {
+        let field_name = format_ident!("{}", sanitize_field_name(field.name()));
+        let has_bit = has_bit_map.get(&field.number()).copied().unwrap_or(0) as u8;
         let kind = field_kind_tokens(field);
         let encoded_tag = calculate_tag(field);
 
-        if matches!(field.r#type(), Type::Message | Type::Group) {
-            let aux_index = *aux_index_map.get(&field.number.unwrap()).unwrap();
+        if matches!(field.r#type().unwrap(), Type::TYPE_MESSAGE | Type::TYPE_GROUP) {
+            let aux_index = *aux_index_map.get(&field.number()).unwrap();
             // Message field - offset points to aux entry
             quote! {
                 protocrap::encoding::TableEntry {
@@ -86,9 +88,9 @@ pub fn generate_decoding_table(
 ) -> Result<TokenStream> {
     // Calculate masked table parameters
     let max_field_number = message
-        .field
+        .field()
         .iter()
-        .map(|f| f.number.unwrap())
+        .map(|f| f.number())
         .max()
         .unwrap_or(0);
 
@@ -112,9 +114,9 @@ pub fn generate_decoding_table(
             let field_number = (i & 15) | (((i >> 5) << 4) * ((i >> 4) & 1));
 
             let kind = message
-                .field
+                .field()
                 .iter()
-                .find(|f| f.number.unwrap() == field_number as i32)
+                .find(|f| f.number() == field_number as i32)
                 .map(field_kind_tokens)
                 .unwrap_or_else(|| quote! { protocrap::wire::FieldKind::Unknown });
 
@@ -124,14 +126,14 @@ pub fn generate_decoding_table(
 
     let mut aux_index_map = std::collections::HashMap::<i32, usize>::new();
     let aux_entries: Vec<_> = message
-        .field
+        .field()
         .iter()
-        .filter(|f| matches!(f.r#type(), Type::Message | Type::Group))
+        .filter(|f| matches!(f.r#type().unwrap(), Type::TYPE_MESSAGE | Type::TYPE_GROUP))
         .map(|field| {
-            let field_name = format_ident!("{}", sanitize_field_name(field.name.as_ref().unwrap()));
+            let field_name = format_ident!("{}", sanitize_field_name(field.name()));
             let child_table = rust_type_tokens(field);
             let num_aux = aux_index_map.len();
-            aux_index_map.insert(field.number.unwrap(), num_aux);
+            aux_index_map.insert(field.number(), num_aux);
             quote! {
                 protocrap::decoding::AuxTableEntry {
                     offset: core::mem::offset_of!(ProtoType, #field_name) as u32,
@@ -144,10 +146,10 @@ pub fn generate_decoding_table(
 
     // Generate entry table
     let table_entries: Vec<_> = (0..=max_field_number).map(|field_number| {
-        if let Some(field) = message.field.iter().find(|f| f.number.unwrap() == field_number as i32) {
-            let field_name = format_ident!("{}", sanitize_field_name(field.name.as_ref().unwrap()));
+        if let Some(field) = message.field().iter().find(|f| f.number() == field_number as i32) {
+            let field_name = format_ident!("{}", sanitize_field_name(field.name()));
 
-            if matches!(field.r#type(), Type::Message | Type::Group) {
+            if matches!(field.r#type().unwrap(), Type::TYPE_MESSAGE | Type::TYPE_GROUP) {
                 let aux_index = *aux_index_map.get(&field_number).unwrap();
                 // Message field - offset points to aux entry
                 quote! { protocrap::decoding::TableEntry(
@@ -182,22 +184,22 @@ pub fn generate_decoding_table(
     })
 }
 
-fn field_kind_tokens(field: &FieldDescriptorProto) -> TokenStream {
-    let base = match field.r#type() {
-        Type::Int32 | Type::Uint32 => "Varint32",
-        Type::Int64 | Type::Uint64 => "Varint64",
-        Type::Sint32 => "Varint32Zigzag",
-        Type::Sint64 => "Varint64Zigzag",
-        Type::Fixed32 | Type::Sfixed32 | Type::Float => "Fixed32",
-        Type::Fixed64 | Type::Sfixed64 | Type::Double => "Fixed64",
-        Type::Bool => "Varint32",
-        Type::String | Type::Bytes => "Bytes",
-        Type::Message => "Message",
-        Type::Group => "Group",
-        Type::Enum => "Varint32",
+fn field_kind_tokens(field: &&FieldDescriptorProto) -> TokenStream {
+    let base = match field.r#type().unwrap() {
+        Type::TYPE_INT32 | Type::TYPE_UINT32 => "Varint32",
+        Type::TYPE_INT64 | Type::TYPE_UINT64 => "Varint64",
+        Type::TYPE_SINT32 => "Varint32Zigzag",
+        Type::TYPE_SINT64 => "Varint64Zigzag",
+        Type::TYPE_FIXED32 | Type::TYPE_SFIXED32 | Type::TYPE_FLOAT => "Fixed32",
+        Type::TYPE_FIXED64 | Type::TYPE_SFIXED64 | Type::TYPE_DOUBLE => "Fixed64",
+        Type::TYPE_BOOL => "Varint32",
+        Type::TYPE_STRING | Type::TYPE_BYTES => "Bytes",
+        Type::TYPE_MESSAGE => "Message",
+        Type::TYPE_GROUP => "Group",
+        Type::TYPE_ENUM => "Varint32",
     };
 
-    let kind_name = if field.label() == Label::Repeated {
+    let kind_name = if field.label().unwrap() == Label::LABEL_REPEATED {
         format!("Repeated{}", base)
     } else {
         base.to_string()
@@ -208,22 +210,22 @@ fn field_kind_tokens(field: &FieldDescriptorProto) -> TokenStream {
 }
 
 fn calculate_tag(field: &FieldDescriptorProto) -> u32 {
-    let wire_type = match field.r#type() {
-        Type::Int32
-        | Type::Int64
-        | Type::Uint32
-        | Type::Uint64
-        | Type::Sint32
-        | Type::Sint64
-        | Type::Bool
-        | Type::Enum => 0,
-        Type::Fixed64 | Type::Sfixed64 | Type::Double => 1,
-        Type::String | Type::Bytes | Type::Message => 2,
-        Type::Group => 3,
-        Type::Fixed32 | Type::Sfixed32 | Type::Float => 5,
+    let wire_type = match field.r#type().unwrap() {
+        Type::TYPE_INT32
+        | Type::TYPE_INT64
+        | Type::TYPE_UINT32
+        | Type::TYPE_UINT64
+        | Type::TYPE_SINT32
+        | Type::TYPE_SINT64
+        | Type::TYPE_BOOL
+        | Type::TYPE_ENUM => 0,
+        Type::TYPE_FIXED64 | Type::TYPE_SFIXED64 | Type::TYPE_DOUBLE => 1,
+        Type::TYPE_STRING | Type::TYPE_BYTES | Type::TYPE_MESSAGE => 2,
+        Type::TYPE_GROUP => 3,
+        Type::TYPE_FIXED32 | Type::TYPE_SFIXED32 | Type::TYPE_FLOAT => 5,
     };
 
-    (field.number.unwrap() as u32) << 3 | wire_type
+    (field.number() as u32) << 3 | wire_type
 }
 
 fn log2_floor_non_zero(n: u32) -> usize {
