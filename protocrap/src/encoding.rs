@@ -219,8 +219,7 @@ fn encode_loop<'a>(
             offset,
             encoded_tag: tag,
         } = obj_state.table[obj_state.field_idx - 1];
-        let offset = offset as usize;
-        if true {
+        if false {
             let descriptor = unsafe {
                 *(obj_state.table.as_ptr() as *const &'static crate::google::protobuf::DescriptorProto::ProtoType)
                     .sub(1)
@@ -238,6 +237,7 @@ fn encode_loop<'a>(
                 println!("Msg {} Field number: {}, Field name {} kind: {:?}", descriptor.name(), field_number, field.name(), kind);
             }
         }
+        let offset = offset as usize;
         match kind {
             FieldKind::Unknown => {
                 unreachable!()
@@ -284,8 +284,8 @@ fn encode_loop<'a>(
                     if cursor <= begin {
                         break;
                     }
-                    let value: bool = obj_state.get::<bool>(offset);
-                    cursor.write_varint(if value { 1 } else { 0 });
+                    let val: bool = obj_state.get::<bool>(offset);
+                    cursor.write_varint(if val { 1 } else { 0 });
                     cursor.write_tag(tag);
                 }
             }
@@ -598,18 +598,15 @@ impl<'a, const STACK_DEPTH: usize> ResumeableEncode<'a, STACK_DEPTH> {
             buffer[len as usize - SLOP_SIZE..].copy_from_slice(&self.patch_buffer[..SLOP_SIZE]);
             state = state.go_encode(&mut buffer[SLOP_SIZE..], &mut self.stack)?;
             if matches!(state.object, EncodeObject::Done) {
-                println!("Encoding done {}", state.overrun);
                 // Leave in uninitialized state to prevent further use
                 return Some(ResumeResult::Done(
                     &buffer[(SLOP_SIZE as isize + state.overrun) as usize..],
                 ));
             }
-            println!("Not done yet, overrun {}", state.overrun);
             self.patch_buffer[SLOP_SIZE..].copy_from_slice(&buffer[..SLOP_SIZE]);
             state = state.go_encode(&mut self.patch_buffer[SLOP_SIZE..], &mut self.stack)?;
             buffer[..SLOP_SIZE].copy_from_slice(&self.patch_buffer[SLOP_SIZE..]);
             if matches!(state.object, EncodeObject::Done) && state.overrun >= 0 {
-                println!("Encoding done {}", state.overrun);
                 // Finished and still in this buffer
                 return Some(ResumeResult::Done(&buffer[state.overrun as usize..]));
             }

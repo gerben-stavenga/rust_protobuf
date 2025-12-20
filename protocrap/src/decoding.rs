@@ -408,7 +408,7 @@ fn decode_loop<'a>(
         'parse_loop: while cursor < limited_end {
             let tag = cursor.read_tag()?;
             let field_number = tag >> 3;
-            if true {
+            if false {
                 let descriptor = ctx.table.descriptor;
                 let field = descriptor
                     .field()
@@ -453,8 +453,8 @@ fn decode_loop<'a>(
                             if tag & 7 != 0 {
                                 break 'unknown;
                             };
-                            let val = cursor.read_varint()? != 0;
-                            ctx.set(entry, val);
+                            let val = cursor.read_varint()?;
+                            ctx.set(entry, val != 0);
                         }
                         FieldKind::Fixed64 => {
                             if tag & 7 != 1 {
@@ -532,8 +532,8 @@ fn decode_loop<'a>(
                             if tag & 7 != 0 {
                                 break 'unknown;
                             };
-                            let val = cursor.read_varint()? != 0;
-                            ctx.add(entry, val, arena);
+                            let val = cursor.read_varint()?;
+                            ctx.add(entry, val != 0, arena);
                         }
                         FieldKind::RepeatedFixed64 => {
                             if tag & 7 != 1 {

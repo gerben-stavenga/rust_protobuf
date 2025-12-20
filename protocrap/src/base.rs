@@ -43,13 +43,15 @@ impl Object {
     }
 
     pub fn has_bit(&self, has_bit_idx: u8) -> bool {
-        debug_assert!(has_bit_idx < 64);
-        (*self.ref_at::<u64>(0)) & (1 << has_bit_idx) != 0
+        let has_bit_word = has_bit_idx as usize / 32;
+        let has_bit_idx = has_bit_idx % 32;
+        (*self.ref_at::<u32>(has_bit_word)) & (1 << has_bit_idx) != 0
     }
 
     pub fn set_has_bit(&mut self, has_bit_idx: u32) {
-        debug_assert!(has_bit_idx < 64);
-        *self.ref_mut::<u64>(0) |= 1 << has_bit_idx;
+        let has_bit_word = has_bit_idx / 32;
+        let has_bit_idx = has_bit_idx % 32;
+        *self.ref_mut::<u32>(has_bit_word) |= 1 << has_bit_idx;
     }
 
     pub(crate) fn get<T: Copy>(&self, offset: usize) -> T {

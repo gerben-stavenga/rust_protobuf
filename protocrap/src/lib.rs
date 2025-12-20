@@ -210,7 +210,6 @@ mod tests {
 
         println!("Encoded descriptor.proto ({} bytes)", encoded.len());
 
-        /* 
         let mut message = crate::google::protobuf::FileDescriptorProto::ProtoType::default();
         let mut arena = crate::arena::Arena::new(&std::alloc::Global);
         assert!(message.decode_flat::<32>(&mut arena, encoded));
@@ -218,6 +217,5 @@ mod tests {
         let mut buffer2 = vec![0u8; 100000];
         let re_encoded = message.encode_flat::<32>(&mut buffer2).unwrap();
         assert_eq!(encoded, re_encoded);
-        */
     }
 }
