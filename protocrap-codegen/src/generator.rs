@@ -7,12 +7,13 @@ use anyhow::Result;
 use proc_macro2::TokenStream;
 use prost_reflect::DescriptorPool;
 use prost_reflect::DynamicMessage;
+use protocrap::reflection::is_repeated;
+use protocrap::reflection::needs_has_bit;
 use quote::{format_ident, quote};
 use protocrap::google::protobuf::FileDescriptorSet::ProtoType as FileDescriptorSet;
 use protocrap::google::protobuf::FileDescriptorProto::ProtoType as FileDescriptorProto;
 use protocrap::google::protobuf::DescriptorProto::ProtoType as DescriptorProto;
-use protocrap::google::protobuf::FieldDescriptorProto::ProtoType as FieldDescriptorProto;
-use protocrap::google::protobuf::FieldDescriptorProto::{Type, Label};
+use protocrap::google::protobuf::FieldDescriptorProto::Type;
 use protocrap::google::protobuf::EnumDescriptorProto::ProtoType as EnumDescriptorProto;
 
 
@@ -278,9 +279,8 @@ fn generate_accessors(
 
     for &field in message.field() {
         let field_name = format_ident!("{}", sanitize_field_name(field.name()));
-        let is_repeated = field.label().unwrap() == Label::LABEL_REPEATED;
 
-        if is_repeated {
+        if is_repeated(field) {
             // Repeated field accessor
             if field.r#type() == Some(Type::TYPE_MESSAGE)
                 || field.r#type() == Some(Type::TYPE_GROUP)
@@ -393,7 +393,7 @@ fn generate_accessors(
                 }
                 _ => {
                     // Scalar types
-                    let return_type = rust_scalar_type_tokens(field);
+                    let return_type = rust_element_type_tokens(field);
                     methods.push(quote! {
                         pub const fn #field_name(&self) -> #return_type {
                             self.#field_name
@@ -456,12 +456,4 @@ fn generate_protobuf_impl() -> TokenStream {
 
         }
     }
-}
-
-fn needs_has_bit(field: &FieldDescriptorProto) -> bool {
-    if field.label().unwrap() == Label::LABEL_REPEATED {
-        return false;
-    }
-
-    !matches!(field.r#type().unwrap(), Type::TYPE_MESSAGE | Type::TYPE_GROUP)
 }

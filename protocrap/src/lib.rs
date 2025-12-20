@@ -10,6 +10,7 @@ pub mod utils;
 
 pub mod decoding;
 pub mod encoding;
+pub mod reflection;
 
 use crate as protocrap;
 include!("descriptor.pc.rs");

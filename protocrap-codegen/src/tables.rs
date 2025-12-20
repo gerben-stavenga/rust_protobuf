@@ -5,8 +5,8 @@ use anyhow::Result;
 use proc_macro2::TokenStream;
 use protocrap::google::protobuf::DescriptorProto::ProtoType as DescriptorProto;
 use protocrap::google::protobuf::FieldDescriptorProto::ProtoType as FieldDescriptorProto;
-use protocrap::google::protobuf::FieldDescriptorProto::{Type, Label};
 
+use protocrap::reflection::{calculate_tag, is_message, is_repeated};
 use quote::{format_ident, quote};
 
 pub fn generate_encoding_table(
@@ -19,7 +19,7 @@ pub fn generate_encoding_table(
     let aux_entries: Vec<_> = message
         .field()
         .iter()
-        .filter(|f| matches!(f.r#type().unwrap(), Type::TYPE_MESSAGE | Type::TYPE_GROUP))
+        .filter(|f| is_repeated(f))
         .map(|field| {
             let field_name = format_ident!("{}", sanitize_field_name(field.name()));
             let child_table = rust_type_tokens(field);
@@ -41,7 +41,7 @@ pub fn generate_encoding_table(
         let kind = field_kind_tokens(field);
         let encoded_tag = calculate_tag(field);
 
-        if matches!(field.r#type().unwrap(), Type::TYPE_MESSAGE | Type::TYPE_GROUP) {
+        if is_message(field) {
             let aux_index = *aux_index_map.get(&field.number()).unwrap();
             // Message field - offset points to aux entry
             quote! {
@@ -104,7 +104,7 @@ pub fn generate_decoding_table(
     let aux_entries: Vec<_> = message
         .field()
         .iter()
-        .filter(|f| matches!(f.r#type().unwrap(), Type::TYPE_MESSAGE | Type::TYPE_GROUP))
+        .filter(|f| is_message(f))
         .map(|field| {
             let field_name = format_ident!("{}", sanitize_field_name(field.name()));
             let child_table = rust_type_tokens(field);
@@ -127,7 +127,7 @@ pub fn generate_decoding_table(
 
             let field_kind = field_kind_tokens(field);
 
-            if matches!(field.r#type().unwrap(), Type::TYPE_MESSAGE | Type::TYPE_GROUP) {
+            if is_message(field) {
                 let aux_index = *aux_index_map.get(&field_number).unwrap();
                 // Message field - offset points to aux entry
                 quote! { protocrap::decoding::TableEntry::new(
@@ -166,52 +166,7 @@ pub fn generate_decoding_table(
 }
 
 fn field_kind_tokens(field: &&FieldDescriptorProto) -> TokenStream {
-    let base = match field.r#type().unwrap() {
-        Type::TYPE_INT32 | Type::TYPE_UINT32 => "Varint32",
-        Type::TYPE_INT64 | Type::TYPE_UINT64 => "Varint64",
-        Type::TYPE_SINT32 => "Varint32Zigzag",
-        Type::TYPE_SINT64 => "Varint64Zigzag",
-        Type::TYPE_FIXED32 | Type::TYPE_SFIXED32 | Type::TYPE_FLOAT => "Fixed32",
-        Type::TYPE_FIXED64 | Type::TYPE_SFIXED64 | Type::TYPE_DOUBLE => "Fixed64",
-        Type::TYPE_BOOL => "Bool",
-        Type::TYPE_STRING | Type::TYPE_BYTES => "Bytes",
-        Type::TYPE_MESSAGE => "Message",
-        Type::TYPE_GROUP => "Group",
-        Type::TYPE_ENUM => "Varint32",
-    };
-
-    let kind_name = if field.label().unwrap() == Label::LABEL_REPEATED {
-        format!("Repeated{}", base)
-    } else {
-        base.to_string()
-    };
-
-    let ident = format_ident!("{}", kind_name);
+    let kind = protocrap::reflection::field_kind_tokens(field);
+    let ident = format_ident!("{kind:?}");
     quote! { protocrap::wire::FieldKind::#ident }
-}
-
-fn calculate_tag(field: &FieldDescriptorProto) -> u32 {
-    let wire_type = match field.r#type().unwrap() {
-        Type::TYPE_INT32
-        | Type::TYPE_INT64
-        | Type::TYPE_UINT32
-        | Type::TYPE_UINT64
-        | Type::TYPE_SINT32
-        | Type::TYPE_SINT64
-        | Type::TYPE_BOOL
-        | Type::TYPE_ENUM => 0,
-        Type::TYPE_FIXED64 | Type::TYPE_SFIXED64 | Type::TYPE_DOUBLE => 1,
-        Type::TYPE_STRING | Type::TYPE_BYTES | Type::TYPE_MESSAGE => 2,
-        Type::TYPE_GROUP => 3,
-        Type::TYPE_FIXED32 | Type::TYPE_SFIXED32 | Type::TYPE_FLOAT => 5,
-    };
-
-    (field.number() as u32) << 3 | wire_type
-}
-
-fn log2_floor_non_zero(n: u32) -> usize {
-    if n == 0 {
-        return 0;
-    }
-    31 - n.leading_zeros() as usize
 }
