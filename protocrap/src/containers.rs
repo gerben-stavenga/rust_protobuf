@@ -322,7 +322,7 @@ impl<T> IntoIterator for RepeatedField<T> {
 
         mem::forget(self);
 
-        IntoIter { iter, buf }
+        IntoIter { iter, _buf: buf }
     }
 }
 
@@ -392,7 +392,7 @@ impl<T> DoubleEndedIterator for RawValIter<T> {
 }
 
 pub struct IntoIter<T> {
-    buf: RawVec,
+    _buf: RawVec,
     iter: RawValIter<T>,
 }
 
