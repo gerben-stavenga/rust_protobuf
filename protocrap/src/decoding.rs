@@ -9,19 +9,30 @@ use crate::wire::{FieldKind, ReadCursor, SLOP_SIZE, zigzag_decode};
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct TableEntry(pub u16);
+pub struct TableEntry(pub u32);
 
 impl TableEntry {
+    pub const fn new(kind: FieldKind, has_bit_idx: u32, offset: usize) -> Self {
+        TableEntry(
+            ((offset & 0xFFFF) as u32) << 16 | has_bit_idx << 8 | (kind as u8 as u32),
+        )
+    }
+
+    pub(crate) fn kind(&self) -> FieldKind {
+        unsafe { std::mem::transmute(self.0 as u8) }
+    }
+
     pub(crate) fn has_bit_idx(&self) -> u32 {
-        (self.0 >> 10) as u32
+        (self.0 >> 8) & 0xFF
     }
 
     pub(crate) fn offset(&self) -> u32 {
-        (self.0 as u32) & 0x3FF
+        println!("Self {} Offset: {}", self.0, self.0 >> 16);
+        self.0 >> 16
     }
 
     pub(crate) fn aux_offset(&self) -> u32 {
-        self.0 as u32
+        self.0 >> 16
     }
 }
 
@@ -37,35 +48,25 @@ unsafe impl Sync for AuxTableEntry {}
 #[repr(C)]
 #[derive(Debug)]
 pub struct Table {
-    pub mask: u16,
+    pub num_entries: u16,
     pub size: u16,
     pub descriptor: &'static crate::google::protobuf::DescriptorProto::ProtoType,
 }
 
 impl Table {
     #[inline(always)]
-    fn kind(&self, tag: u32) -> FieldKind {
-        let masked = (tag as usize) & (self.mask as usize);
+    pub(crate) fn entry(&self, field_number: u32) -> Option<TableEntry> {
+        if field_number >= self.num_entries as u32 {
+            return None;
+        }
         unsafe {
-            let kinds_ptr = (self as *const Table).add(1) as *const FieldKind;
-            *kinds_ptr.add(masked >> 3)
+            let table_entry_ptr = (self as *const Table).add(1) as *const TableEntry;
+            Some(*table_entry_ptr.add(field_number as usize))
         }
     }
 
     #[inline(always)]
-    pub(crate) fn entry(&self, field_number: u32) -> TableEntry {
-        unsafe {
-            let kind_array_ptr = (self as *const Table).add(1) as *const FieldKind;
-            // TODO alignment for small tables
-            let entries_ptr =
-                kind_array_ptr.add(1 + (self.mask as usize >> 3)) as *const TableEntry;
-            *entries_ptr.add(field_number as usize)
-        }
-    }
-
-    #[inline(always)]
-    pub(crate) fn aux_entry(&self, field_number: u32) -> &AuxTableEntry {
-        let entry = self.entry(field_number);
+    pub(crate) fn aux_entry(&self, entry: TableEntry) -> &AuxTableEntry {
         let offset = entry.aux_offset();
         unsafe {
             let aux_table_ptr =
@@ -77,12 +78,10 @@ impl Table {
 
 #[repr(C)]
 pub struct TableWithEntries<
-    const NUM_MASKED: usize,
     const NUM_ENTRIES: usize,
     const NUM_AUX_ENTRIES: usize,
 >(
     pub Table,
-    pub [FieldKind; NUM_MASKED],
     pub [TableEntry; NUM_ENTRIES],
     pub [AuxTableEntry; NUM_AUX_ENTRIES],
 );
@@ -186,25 +185,22 @@ impl<'a> DecodeObjectState<'a> {
     }
 
     #[inline(always)]
-    fn set<T>(&mut self, field_number: u32, val: T) {
-        let entry = self.table.entry(field_number);
+    fn set<T>(&mut self, entry: TableEntry, val: T) {
         self.obj.set(entry.offset(), entry.has_bit_idx(), val);
     }
 
     #[inline(always)]
-    fn add<T>(&mut self, field_number: u32, val: T, arena: &mut crate::arena::Arena) {
-        let entry = self.table.entry(field_number);
+    fn add<T>(&mut self, entry: TableEntry, val: T, arena: &mut crate::arena::Arena) {
         self.obj.add(entry.aux_offset(), val, arena);
     }
 
     #[inline(always)]
     fn set_bytes(
         &mut self,
-        field_number: u32,
+        entry: TableEntry,
         slice: &[u8],
         arena: &mut crate::arena::Arena,
     ) -> &'a mut Bytes {
-        let entry = self.table.entry(field_number);
         unsafe {
             core::mem::transmute(self.obj.set_bytes(
                 entry.offset(),
@@ -218,21 +214,20 @@ impl<'a> DecodeObjectState<'a> {
     #[inline(always)]
     fn add_bytes(
         &mut self,
-        field_number: u32,
+        entry: TableEntry,
         slice: &[u8],
         arena: &mut crate::arena::Arena,
     ) -> &'a mut Bytes {
-        let entry = self.table.entry(field_number);
         unsafe { core::mem::transmute(self.obj.add_bytes(entry.aux_offset(), slice, arena)) }
     }
 
     #[inline(always)]
     fn get_or_create_child_object(
         &mut self,
-        field_number: u32,
+        entry: TableEntry,
         arena: &mut crate::arena::Arena,
     ) -> (&'a mut Object, &'a Table) {
-        let aux_entry = self.table.aux_entry(field_number);
+        let aux_entry = self.table.aux_entry(entry);
         let field = self.obj.ref_mut::<*mut Object>(aux_entry.offset);
         let child_table = unsafe { &*aux_entry.child_table };
         let child = if (*field).is_null() {
@@ -248,10 +243,10 @@ impl<'a> DecodeObjectState<'a> {
     #[inline(always)]
     fn add_child_object(
         &mut self,
-        field_number: u32,
+        entry: TableEntry,
         arena: &mut crate::arena::Arena,
     ) -> (&'a mut Object, &'a Table) {
-        let aux_entry = self.table.aux_entry(field_number);
+        let aux_entry = self.table.aux_entry(entry);
         let field = self
             .obj
             .ref_mut::<RepeatedField<*mut Object>>(aux_entry.offset);
@@ -413,250 +408,180 @@ fn decode_loop<'a>(
         // inner parse loop
         'parse_loop: while cursor < limited_end {
             let tag = cursor.read_tag()?;
-            let mut kind = ctx.table.kind(tag);
             let field_number = tag >> 3;
             if true {
-                let tag = if tag & 0x80 == 0 {
-                    tag & 0xFF
+                let descriptor = ctx.table.descriptor;
+                let field = descriptor
+                    .field()
+                    .iter()
+                    .find(|f| f.number() as u32 == field_number);
+                if field.is_none() {
+                    // field not found in descriptor, treat as unknown
+                    println!("Msg {} Unknown Field number: {}", descriptor.name(), field_number);                    
                 } else {
-                    (tag + (tag & 0x7F) - 0x80) >> 1
-                };
-                println!("Message {} field num {} decoding tag: {:o}, kind {:?}", ctx.table.descriptor.name(), tag >> 3, tag, ctx.table.kind(tag));
-                'x: {
-                    for field in ctx.table.descriptor.field() {
-                        if field.number() as u32 == field_number {
-                            println!("  field name: {}", field.name());
-                            if field.label().unwrap() == crate::google::protobuf::FieldDescriptorProto::Label::LABEL_REPEATED {
-                                kind = match field.r#type().unwrap() {
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_INT32
-                                    | crate::google::protobuf::FieldDescriptorProto::Type::TYPE_UINT32 => FieldKind::RepeatedVarint32,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_INT64
-                                    | crate::google::protobuf::FieldDescriptorProto::Type::TYPE_UINT64 => FieldKind::RepeatedVarint64,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_SINT32 => FieldKind::RepeatedVarint32Zigzag,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_SINT64 => FieldKind::RepeatedVarint64Zigzag,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_FIXED32
-                                    | crate::google::protobuf::FieldDescriptorProto::Type::TYPE_SFIXED32
-                                    | crate::google::protobuf::FieldDescriptorProto::Type::TYPE_FLOAT => FieldKind::RepeatedFixed32,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_FIXED64
-                                    | crate::google::protobuf::FieldDescriptorProto::Type::TYPE_SFIXED64
-                                    | crate::google::protobuf::FieldDescriptorProto::Type::TYPE_DOUBLE => FieldKind::RepeatedFixed64,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_BOOL => FieldKind::RepeatedBool,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_STRING
-                                    | crate::google::protobuf::FieldDescriptorProto::Type::TYPE_BYTES => FieldKind::RepeatedBytes,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_MESSAGE
-                                    | crate::google::protobuf::FieldDescriptorProto::Type::TYPE_GROUP => FieldKind::RepeatedMessage,
-                                    _ => {
-                                        println!("  unknown repeated field type");
-                                        FieldKind::Unknown
-                                    }
-                                };
+                    let field = field.unwrap();
+                    println!("Msg {} Field number: {}, Field name {}", descriptor.name(), field_number, field.name());
+                }
+            }
+            if let Some(entry) = ctx.table.entry(field_number) {
+                'unknown: {
+                    match entry.kind() {
+                        FieldKind::Varint64 => {
+                            if tag & 7 != 0 {
+                                break 'unknown;
+                            };
+                            ctx.set(entry, cursor.read_varint()?);
+                        }
+                        FieldKind::Varint32 => {
+                            if tag & 7 != 0 {
+                                break 'unknown;
+                            };
+                            ctx.set(entry, cursor.read_varint()? as u32);
+                        }
+                        FieldKind::Varint64Zigzag => {
+                            if tag & 7 != 0 {
+                                break 'unknown;
+                            };
+                            ctx.set(entry, zigzag_decode(cursor.read_varint()?));
+                        }
+                        FieldKind::Varint32Zigzag => {
+                            if tag & 7 != 0 {
+                                break 'unknown;
+                            };
+                            ctx.set(entry, zigzag_decode(cursor.read_varint()?) as i32);
+                        }
+                        FieldKind::Fixed64 => {
+                            if tag & 7 != 1 {
+                                break 'unknown;
+                            };
+                            ctx.set(entry, cursor.read_unaligned::<u64>());
+                        }
+                        FieldKind::Fixed32 => {
+                            if tag & 7 != 5 {
+                                break 'unknown;
+                            };
+                            ctx.set(entry, cursor.read_unaligned::<u32>());
+                        }
+                        FieldKind::Bytes => {
+                            if tag & 7 != 2 {
+                                break 'unknown;
+                            };
+                            let len = cursor.read_size()?;
+                            if cursor - limited_end + len <= SLOP_SIZE as isize {
+                                ctx.set_bytes(entry, cursor.read_slice(len), arena);
                             } else {
-                                kind = match field.r#type().unwrap() {
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_INT32
-                                    | crate::google::protobuf::FieldDescriptorProto::Type::TYPE_UINT32 => FieldKind::Varint32,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_INT64
-                                    | crate::google::protobuf::FieldDescriptorProto::Type::TYPE_UINT64 => FieldKind::Varint64,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_SINT32 => FieldKind::Varint32Zigzag,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_SINT64 => FieldKind::Varint64Zigzag,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_FIXED32
-                                    | crate::google::protobuf::FieldDescriptorProto::Type::TYPE_SFIXED32
-                                    | crate::google::protobuf::FieldDescriptorProto::Type::TYPE_FLOAT => FieldKind::Fixed32,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_FIXED64
-                                    | crate::google::protobuf::FieldDescriptorProto::Type::TYPE_SFIXED64
-                                    | crate::google::protobuf::FieldDescriptorProto::Type::TYPE_DOUBLE => FieldKind::Fixed64,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_BOOL => FieldKind::Bool,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_STRING
-                                    | crate::google::protobuf::FieldDescriptorProto::Type::TYPE_BYTES => FieldKind::Bytes,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_MESSAGE => FieldKind::Message,
-                                    crate::google::protobuf::FieldDescriptorProto::Type::TYPE_GROUP => FieldKind::Group,
-                                    _ => {
-                                        println!("  unknown singular field type");
-                                        FieldKind::Unknown
-                                    }
-                                };
-                                println!("  singular field");
+                                ctx.push_limit(len, cursor, end, stack)?;
+                                let bytes = ctx.set_bytes(
+                                    entry,
+                                    cursor.read_slice(SLOP_SIZE as isize - (cursor - end)),
+                                    arena,
+                                );
+                                return Some((cursor, ctx.limit, DecodeObject::Bytes(bytes)));
                             }
-                            break 'x;
                         }
-                    }
-                    println!("  unknown field");
-                    kind = FieldKind::Unknown;
-                }
-            }
-            'unknown: {
-                match kind {
-                    FieldKind::Varint64 => {
-                        if tag & 7 != 0 {
-                            break 'unknown;
-                        };
-                        ctx.set(field_number, cursor.read_varint()?);
-                    }
-                    FieldKind::Varint32 => {
-                        if tag & 7 != 0 {
-                            break 'unknown;
-                        };
-                        ctx.set(field_number, cursor.read_varint()? as u32);
-                    }
-                    FieldKind::Varint64Zigzag => {
-                        if tag & 7 != 0 {
-                            break 'unknown;
-                        };
-                        ctx.set(field_number, zigzag_decode(cursor.read_varint()?));
-                    }
-                    FieldKind::Varint32Zigzag => {
-                        if tag & 7 != 0 {
-                            break 'unknown;
-                        };
-                        ctx.set(field_number, zigzag_decode(cursor.read_varint()?) as i32);
-                    }
-                    FieldKind::Bool => {
-                        if tag & 7 != 0 {
-                            break 'unknown;
-                        };
-                        let value = cursor.read_varint()?;
-                        ctx.set(field_number, value != 0);
-                    }
-                    FieldKind::Fixed64 => {
-                        if tag & 7 != 1 {
-                            break 'unknown;
-                        };
-                        ctx.set(field_number, cursor.read_unaligned::<u64>());
-                    }
-                    FieldKind::Fixed32 => {
-                        if tag & 7 != 5 {
-                            break 'unknown;
-                        };
-                        ctx.set(field_number, cursor.read_unaligned::<u32>());
-                    }
-                    FieldKind::Bytes => {
-                        if tag & 7 != 2 {
-                            break 'unknown;
-                        };
-                        let len = cursor.read_size()?;
-                        if cursor - limited_end + len <= SLOP_SIZE as isize {
-                            ctx.set_bytes(field_number, cursor.read_slice(len), arena);
-                        } else {
-                            ctx.push_limit(len, cursor, end, stack)?;
-                            let bytes = ctx.set_bytes(
-                                field_number,
-                                cursor.read_slice(SLOP_SIZE as isize - (cursor - end)),
+                        FieldKind::Message => {
+                            if tag & 7 != 2 {
+                                break 'unknown;
+                            };
+                            let len = cursor.read_size()?;
+                            limited_end = ctx.push_limit(len, cursor, end, stack)?;
+                            (ctx.obj, ctx.table) = ctx.get_or_create_child_object(entry, arena);
+                        }
+                        FieldKind::Group => {
+                            if tag & 7 != 3 {
+                                break 'unknown;
+                            };
+                            ctx.push_group(field_number, stack)?;
+                            (ctx.obj, ctx.table) = ctx.get_or_create_child_object(entry, arena);
+                        }
+                        FieldKind::RepeatedVarint64 => {
+                            if tag & 7 != 0 {
+                                break 'unknown;
+                            };
+                            ctx.add(entry, cursor.read_varint()?, arena);
+                        }
+                        FieldKind::RepeatedVarint32 => {
+                            if tag & 7 != 0 {
+                                break 'unknown;
+                            };
+                            ctx.add(entry, cursor.read_varint()? as u32, arena);
+                        }
+                        FieldKind::RepeatedVarint64Zigzag => {
+                            if tag & 7 != 0 {
+                                break 'unknown;
+                            };
+                            ctx.add(entry, zigzag_decode(cursor.read_varint()?), arena);
+                        }
+                        FieldKind::RepeatedVarint32Zigzag => {
+                            if tag & 7 != 0 {
+                                break 'unknown;
+                            };
+                            ctx.add(
+                                entry,
+                                zigzag_decode(cursor.read_varint()?) as i32,
                                 arena,
                             );
-                            return Some((cursor, ctx.limit, DecodeObject::Bytes(bytes)));
+                        }
+                        FieldKind::RepeatedFixed64 => {
+                            if tag & 7 != 1 {
+                                break 'unknown;
+                            };
+                            ctx.add(entry, cursor.read_unaligned::<u64>(), arena);
+                        }
+                        FieldKind::RepeatedFixed32 => {
+                            if tag & 7 != 5 {
+                                break 'unknown;
+                            };
+                            ctx.add(entry, cursor.read_unaligned::<u32>(), arena);
+                        }
+                        FieldKind::RepeatedBytes => {
+                            if tag & 7 != 2 {
+                                break 'unknown;
+                            };
+                            let len = cursor.read_size()?;
+                            if cursor - limited_end + len <= SLOP_SIZE as isize {
+                                ctx.add_bytes(entry, cursor.read_slice(len), arena);
+                            } else {
+                                ctx.push_limit(len, cursor, end, stack)?;
+                                let bytes = ctx.add_bytes(
+                                    entry,
+                                    cursor.read_slice(SLOP_SIZE as isize - (cursor - end)),
+                                    arena,
+                                );
+                                return Some((cursor, ctx.limit, DecodeObject::Bytes(bytes)));
+                            }
+                        }
+                        FieldKind::RepeatedMessage => {
+                            if tag & 7 != 2 {
+                                break 'unknown;
+                            };
+                            let len = cursor.read_size()?;
+                            limited_end = ctx.push_limit(len, cursor, end, stack)?;
+                            (ctx.obj, ctx.table) = ctx.add_child_object(entry, arena);
+                        }
+                        FieldKind::RepeatedGroup => {
+                            if tag & 7 != 3 {
+                                break 'unknown;
+                            };
+                            ctx.push_group(field_number, stack)?;
+                            (ctx.obj, ctx.table) = ctx.add_child_object(entry, arena);
+                        }
+                        FieldKind::Unknown => {
+                            break 'unknown;
                         }
                     }
-                    FieldKind::Message => {
-                        if tag & 7 != 2 {
-                            break 'unknown;
-                        };
-                        let len = cursor.read_size()?;
-                        limited_end = ctx.push_limit(len, cursor, end, stack)?;
-                        (ctx.obj, ctx.table) = ctx.get_or_create_child_object(field_number, arena);
-                    }
-                    FieldKind::Group => {
-                        if tag & 7 != 3 {
-                            break 'unknown;
-                        };
-                        ctx.push_group(field_number, stack)?;
-                        (ctx.obj, ctx.table) = ctx.get_or_create_child_object(field_number, arena);
-                    }
-                    FieldKind::RepeatedVarint64 => {
-                        if tag & 7 != 0 {
-                            break 'unknown;
-                        };
-                        ctx.add(field_number, cursor.read_varint()?, arena);
-                    }
-                    FieldKind::RepeatedVarint32 => {
-                        if tag & 7 != 0 {
-                            break 'unknown;
-                        };
-                        ctx.add(field_number, cursor.read_varint()? as u32, arena);
-                    }
-                    FieldKind::RepeatedVarint64Zigzag => {
-                        if tag & 7 != 0 {
-                            break 'unknown;
-                        };
-                        ctx.add(field_number, zigzag_decode(cursor.read_varint()?), arena);
-                    }
-                    FieldKind::RepeatedVarint32Zigzag => {
-                        if tag & 7 != 0 {
-                            break 'unknown;
-                        };
-                        ctx.add(
-                            field_number,
-                            zigzag_decode(cursor.read_varint()?) as i32,
-                            arena,
-                        );
-                    }
-                    FieldKind::RepeatedBool => {
-                        if tag & 7 != 0 {
-                            break 'unknown;
-                        };
-                        let value = cursor.read_varint()?;
-                        ctx.add(field_number, value != 0, arena);
-                    }
-                    FieldKind::RepeatedFixed64 => {
-                        if tag & 7 != 1 {
-                            break 'unknown;
-                        };
-                        ctx.add(field_number, cursor.read_unaligned::<u64>(), arena);
-                    }
-                    FieldKind::RepeatedFixed32 => {
-                        if tag & 7 != 5 {
-                            break 'unknown;
-                        };
-                        ctx.add(field_number, cursor.read_unaligned::<u32>(), arena);
-                    }
-                    FieldKind::RepeatedBytes => {
-                        if tag & 7 != 2 {
-                            break 'unknown;
-                        };
-                        let len = cursor.read_size()?;
-                        if cursor - limited_end + len <= SLOP_SIZE as isize {
-                            ctx.add_bytes(field_number, cursor.read_slice(len), arena);
-                        } else {
-                            ctx.push_limit(len, cursor, end, stack)?;
-                            let bytes = ctx.add_bytes(
-                                field_number,
-                                cursor.read_slice(SLOP_SIZE as isize - (cursor - end)),
-                                arena,
-                            );
-                            return Some((cursor, ctx.limit, DecodeObject::Bytes(bytes)));
-                        }
-                    }
-                    FieldKind::RepeatedMessage => {
-                        if tag & 7 != 2 {
-                            break 'unknown;
-                        };
-                        let len = cursor.read_size()?;
-                        limited_end = ctx.push_limit(len, cursor, end, stack)?;
-                        (ctx.obj, ctx.table) = ctx.add_child_object(field_number, arena);
-                    }
-                    FieldKind::RepeatedGroup => {
-                        if tag & 7 != 3 {
-                            break 'unknown;
-                        };
-                        ctx.push_group(field_number, stack)?;
-                        (ctx.obj, ctx.table) = ctx.add_child_object(field_number, arena);
-                    }
-                    FieldKind::Unknown => {
-                        break 'unknown;
-                    }
+                    continue 'parse_loop;
                 }
-                continue 'parse_loop;
-            }
+            };
             // unknown field
-            if tag & 0xFF == 0 {
-                // 0 byte can used to terminate parsing, but only if stack is empty
-                if stack.is_empty() {
-                    cursor += 1; // consume the 0 byte
-                    return Some((cursor, ctx.limit, DecodeObject::None));
-                }
-                return None;
-            }
-            let tag = cursor.read_tag()?;
-            let field_number = tag >> 3;
             if field_number == 0 {
+                if tag == 0 {
+                    // 0 byte can used to terminate parsing, but only if stack is empty
+                    if stack.is_empty() {
+                        return Some((cursor, ctx.limit, DecodeObject::None));
+                    }
+                    return None;
+                }
                 // field number 0 is invalid
                 return None;
             }

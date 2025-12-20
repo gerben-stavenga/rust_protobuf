@@ -1,9 +1,6 @@
-use serde::de;
 use serde::ser::{SerializeSeq, SerializeStruct};
 
 use crate::base::{Message, Object};
-use crate::containers::Bytes;
-use crate::decoding::AuxTableEntry;
 use crate::encoding::aux_entry;
 use crate::google::protobuf::DescriptorProto;
 use crate::google::protobuf::FieldDescriptorProto::{Label, Type};
@@ -452,7 +449,7 @@ impl<'de, 'arena, 'alloc, 'b> serde::de::Visitor<'de> for ProtobufVisitor<'arena
         }
         while let Some(idx) = map.next_key_seed(StructKeyVisitor(&field_map))? {
             let field = table.descriptor.field()[idx];
-            let entry = table.entry(field.number() as u32);
+            let entry = table.entry(field.number() as u32).unwrap();  // Safe: field exists in table
             match field.label().unwrap() {
                 Label::LABEL_REPEATED => match field.r#type().unwrap() {
                     Type::TYPE_BOOL => {
@@ -518,7 +515,7 @@ impl<'de, 'arena, 'alloc, 'b> serde::de::Visitor<'de> for ProtobufVisitor<'arena
                         let &decoding::AuxTableEntry {
                             offset,
                             child_table,
-                        } = table.aux_entry(field.number() as u32);
+                        } = table.aux_entry(entry);
                         let child_table = unsafe { &*child_table };
                         let rf = obj
                             .ref_mut::<crate::containers::RepeatedField<crate::base::Message>>(
@@ -601,7 +598,7 @@ impl<'de, 'arena, 'alloc, 'b> serde::de::Visitor<'de> for ProtobufVisitor<'arena
                         let &decoding::AuxTableEntry {
                             offset,
                             child_table,
-                        } = table.aux_entry(field.number() as u32);
+                        } = table.aux_entry(entry);
                         let child_table = unsafe { &*child_table };
                         let child_obj = Object::create(child_table.size as u32, arena);
                         obj.set::<crate::base::Message>(
