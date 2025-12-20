@@ -34,20 +34,29 @@ pub fn generate_static_dynamic(value: &DynamicMessage) -> Result<TokenStream> {
 }
 
 fn calculate_has_bits(value: &DynamicMessage, descriptor: &MessageDescriptor) -> Vec<u32> {
-    let field_count = descriptor.fields().len();
-    let word_count = (field_count + 31) / 32;
-    let mut has_bits = vec![0u32; word_count.max(1)];
+    let num_has_bits = descriptor
+        .fields()
+        .filter(|field| !field.is_list() && !matches!(field.kind(), prost_reflect::Kind::Message(_)))
+        .count();
+    let word_count = (num_has_bits + 31) / 32;
+    let mut has_bits = vec![0u32; word_count];
 
-    for (idx, field) in descriptor.fields().enumerate() {
+    let mut has_bit_idx = 0;
+    for field in descriptor.fields() {
+        if field.is_list() || matches!(field.kind(), prost_reflect::Kind::Message(_)) {
+            continue;
+        }
         if value.has_field(&field) {
-            let word_idx = idx / 32;
-            let bit_idx = idx % 32;
+            let word_idx = has_bit_idx / 32;
+            let bit_idx = has_bit_idx % 32;
             has_bits[word_idx] |= 1u32 << bit_idx;
         }
+        has_bit_idx += 1;
     }
 
     has_bits
 }
+
 
 fn generate_has_bits_array(has_bits: &[u32]) -> TokenStream {
     let values: Vec<_> = has_bits
