@@ -127,7 +127,7 @@ pub fn generate_decoding_table(
 
             let field_kind = field_kind_tokens(field);
 
-            if matches!(field.r#type(), Type::Message | Type::Group) {
+            if matches!(field.r#type().unwrap(), Type::TYPE_MESSAGE | Type::TYPE_GROUP) {
                 let aux_index = *aux_index_map.get(&field_number).unwrap();
                 // Message field - offset points to aux entry
                 quote! { protocrap::decoding::TableEntry::new(

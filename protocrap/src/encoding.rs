@@ -220,7 +220,24 @@ fn encode_loop<'a>(
             encoded_tag: tag,
         } = obj_state.table[obj_state.field_idx - 1];
         let offset = offset as usize;
-        // println!("Encoding field with tag {} index {} rep field index {} and kind {:?}", tag,  obj_state.field_idx, obj_state.rep_field_idx, kind);
+        if true {
+            let descriptor = unsafe {
+                *(obj_state.table.as_ptr() as *const &'static crate::google::protobuf::DescriptorProto::ProtoType)
+                    .sub(1)
+            };
+            let field_number = tag >> 3;
+            let field = descriptor
+                .field()
+                .iter()
+                .find(|f| f.number() as u32 == field_number);
+            if field.is_none() {
+                // field not found in descriptor, treat as unknown
+                println!("Msg {} Unknown Field number: {} kind: {:?}", descriptor.name(), field_number, kind);
+            } else {
+                let field = field.unwrap();
+                println!("Msg {} Field number: {}, Field name {} kind: {:?}", descriptor.name(), field_number, field.name(), kind);
+            }
+        }
         match kind {
             FieldKind::Unknown => {
                 unreachable!()

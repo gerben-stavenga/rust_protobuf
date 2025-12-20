@@ -27,7 +27,6 @@ impl TableEntry {
     }
 
     pub(crate) fn offset(&self) -> u32 {
-        println!("Self {} Offset: {}", self.0, self.0 >> 16);
         self.0 >> 16
     }
 
@@ -450,6 +449,13 @@ fn decode_loop<'a>(
                             };
                             ctx.set(entry, zigzag_decode(cursor.read_varint()?) as i32);
                         }
+                        FieldKind::Bool => {
+                            if tag & 7 != 0 {
+                                break 'unknown;
+                            };
+                            let val = cursor.read_varint()? != 0;;
+                            ctx.set(entry, val);
+                        }
                         FieldKind::Fixed64 => {
                             if tag & 7 != 1 {
                                 break 'unknown;
@@ -521,6 +527,13 @@ fn decode_loop<'a>(
                                 zigzag_decode(cursor.read_varint()?) as i32,
                                 arena,
                             );
+                        }
+                        FieldKind::RepeatedBool => {
+                            if tag & 7 != 0 {
+                                break 'unknown;
+                            };
+                            let val = cursor.read_varint()? != 0;
+                            ctx.add(entry, val, arena);
                         }
                         FieldKind::RepeatedFixed64 => {
                             if tag & 7 != 1 {

@@ -198,4 +198,22 @@ mod tests {
         assert_eq!(message_descriptor.name(), "DescriptorProto");
         assert_eq!(nested_descriptor.name(), "ExtensionRange");
     }
+
+    #[test]
+    fn file_descriptor_roundtrip() {
+        use crate::ProtobufExt;
+        let file_descriptor =
+            crate::google::protobuf::FileDescriptorProto::ProtoType::file_descriptor();
+
+        let mut arena = crate::arena::Arena::new(&std::alloc::Global);
+        let mut buffer1 =  vec![0u8; 100000];
+        let mut buffer2 = vec![0u8; 100000];
+        let encoded = file_descriptor.encode_flat::<32>(&mut buffer1).unwrap();
+
+        let mut message = crate::google::protobuf::FileDescriptorProto::ProtoType::default();
+        assert!(message.decode_flat::<32>(&mut arena, encoded));
+
+        let re_encoded = message.encode_flat::<32>(&mut buffer2).unwrap();
+        assert_eq!(encoded, re_encoded);
+    }
 }
