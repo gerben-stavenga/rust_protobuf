@@ -16601,9 +16601,7 @@ pub mod google {
         pub static FILE_DESCRIPTOR_PROTO: protocrap::google::protobuf::FileDescriptorProto::ProtoType = {
             protocrap::google::protobuf::FileDescriptorProto::ProtoType::from_static(
                 [3],
-                protocrap::containers::String::from_static(
-                    "protocrap/proto/descriptor.proto",
-                ),
+                protocrap::containers::String::from_static("proto/descriptor.proto"),
                 protocrap::containers::String::from_static("google.protobuf"),
                 protocrap::containers::RepeatedField::new(),
                 {
