@@ -124,7 +124,7 @@ dependencies = [
  "criterion",
  "prost",
  "prost-build",
- "protocrap",
+ "protocrap 0.1.1",
  "protocrap-codegen",
  "serde",
  "serde_json",
@@ -580,16 +580,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "prost-reflect"
-version = "0.16.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b89455ef41ed200cafc47c76c552ee7792370ac420497e551f16123a9135f76e"
-dependencies = [
- "prost",
- "prost-types",
-]
-
-[[package]]
 name = "prost-types"
 version = "0.14.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -601,6 +591,15 @@ dependencies = [
 [[package]]
 name = "protocrap"
 version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "futures",
+ "serde",
+]
+
+[[package]]
+name = "protocrap"
+version = "0.1.1"
 dependencies = [
  "anyhow",
  "futures",
@@ -618,7 +617,7 @@ dependencies = [
  "codegen-tests",
  "criterion",
  "prost",
- "protocrap",
+ "protocrap 0.1.1",
  "serde",
 ]
 
@@ -629,23 +628,9 @@ dependencies = [
  "anyhow",
  "prettyplease",
  "proc-macro2",
- "protocrap",
- "protocrap_stable",
+ "protocrap 0.1.0",
+ "protocrap 0.1.1",
  "quote",
- "syn",
-]
-
-[[package]]
-name = "protocrap_stable"
-version = "0.1.0"
-dependencies = [
- "anyhow",
- "futures",
- "prettyplease",
- "proc-macro2",
- "prost-reflect",
- "quote",
- "serde",
  "syn",
 ]
 

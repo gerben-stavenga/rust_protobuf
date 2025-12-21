@@ -1,3 +1,31 @@
 [workspace]
-members = ["protocrap", "protocrap_stable", "protocrap/codegen/codegen-tests", "protocrap/benchmark", "protocrap/codegen"]
+members = [".", "codegen/codegen-tests", "benchmark", "codegen"]
 resolver = "2"
+
+[package]
+name = "protocrap"
+version = "0.1.1"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.100"
+futures = "0.3.31"
+serde = { version = "1.0.228", optional = true}
+
+# Code generation dependencies (optional, only used when building the codegen binary)
+quote = { version = "1.0", optional = true }
+syn = { version = "2.0", features = ["full", "parsing"], optional = true }
+proc-macro2 = { version = "1.0", optional = true }
+prettyplease = { version = "0.2", optional = true }
+
+[features]
+default = ["std", "serde_support"]
+serde_support = ["serde"]
+std = []
+
+[profile.dev]
+panic = 'abort'
+
+[profile.release]
+panic = 'abort'
+

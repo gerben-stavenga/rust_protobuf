@@ -9,9 +9,8 @@ quote = "1.0"
 syn = { version = "2.0", features = ["full", "parsing"] }
 proc-macro2 = "1.0"
 prettyplease = "0.2"
-prost-reflect = "0.16.3"
 
-protocrap_stable = { path = "../../protocrap_stable", optional = true }
+protocrap_stable = { package = "protocrap", path = "../../protocrap_stable/protocrap", optional = true }
 protocrap = { path = "../../protocrap", optional = true }
 
 [features]
