@@ -125,7 +125,6 @@ dependencies = [
  "prost",
  "prost-build",
  "protocrap",
- "protocrap-codegen",
  "serde",
  "serde_json",
 ]
@@ -604,7 +603,13 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "futures",
+ "prettyplease",
+ "proc-macro2",
+ "prost-reflect",
+ "protocrap_stable",
+ "quote",
  "serde",
+ "syn",
 ]
 
 [[package]]
@@ -619,15 +624,16 @@ dependencies = [
 ]
 
 [[package]]
-name = "protocrap-codegen"
+name = "protocrap_stable"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "futures",
  "prettyplease",
  "proc-macro2",
  "prost-reflect",
- "protocrap",
  "quote",
+ "serde",
  "syn",
 ]
 
