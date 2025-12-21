@@ -144,87 +144,6 @@ impl<'pool, 'msg> DynamicMessage<'pool, 'msg> {
         None
     }
 
-    pub fn get_field(&'msg self, field: &'pool FieldDescriptorProto) -> Value<'pool, 'msg> {
-        let entry = self.table.entry(field.number() as u32).unwrap();
-        if field.label().unwrap() == Label::LABEL_REPEATED {
-            // Repeated field
-            match field.r#type().unwrap() {
-                Type::TYPE_INT32 | Type::TYPE_SINT32 | Type::TYPE_SFIXED32 | Type::TYPE_ENUM => {
-                    Value::RepeatedInt32(self.object.get_slice::<i32>(entry.offset() as usize))
-                }
-                Type::TYPE_INT64 | Type::TYPE_SINT64 | Type::TYPE_SFIXED64 => {
-                    Value::RepeatedInt64(self.object.get_slice::<i64>(entry.offset() as usize))
-                }
-                Type::TYPE_UINT32 | Type::TYPE_FIXED32 => {
-                    Value::RepeatedUInt32(self.object.get_slice::<u32>(entry.offset() as usize))
-                }
-                Type::TYPE_UINT64 | Type::TYPE_FIXED64 => {
-                    Value::RepeatedUInt64(self.object.get_slice::<u64>(entry.offset() as usize))
-                }
-                Type::TYPE_FLOAT => {
-                    Value::RepeatedFloat(self.object.get_slice::<f32>(entry.offset() as usize))
-                }
-                Type::TYPE_DOUBLE => {
-                    Value::RepeatedDouble(self.object.get_slice::<f64>(entry.offset() as usize))
-                }
-                Type::TYPE_BOOL => {
-                    Value::RepeatedBool(self.object.get_slice::<bool>(entry.offset() as usize))
-                }
-                Type::TYPE_STRING => {
-                    Value::RepeatedString(self.object.get_slice::<String>(entry.offset() as usize))
-                }
-                Type::TYPE_BYTES => {
-                    Value::RepeatedBytes(self.object.get_slice::<Bytes>(entry.offset() as usize))
-                }
-                Type::TYPE_MESSAGE | Type::TYPE_GROUP => {
-                    let aux = self.table.aux_entry_decode(entry);
-                    let slice = self.object.get_slice::<Message>(aux.offset as usize);
-                    let dynamic_array = DynamicMessageArray {
-                        object: slice,
-                        table: unsafe { &*aux.child_table },
-                    };
-                    Value::RepeatedMessage(dynamic_array)
-                }
-            }
-        } else {
-            match field.r#type().unwrap() {
-                Type::TYPE_INT32 | Type::TYPE_SINT32 | Type::TYPE_SFIXED32 | Type::TYPE_ENUM => {
-                    Value::Int32(self.object.get(entry.offset() as usize))
-                }
-                Type::TYPE_INT64 | Type::TYPE_SINT64 | Type::TYPE_SFIXED64 => {
-                    Value::Int64(self.object.get(entry.offset() as usize))
-                }
-                Type::TYPE_UINT32 | Type::TYPE_FIXED32 => {
-                    Value::UInt32(self.object.get(entry.offset() as usize))
-                }
-                Type::TYPE_UINT64 | Type::TYPE_FIXED64 => {
-                    Value::UInt64(self.object.get(entry.offset() as usize))
-                }
-                Type::TYPE_FLOAT => Value::Float(self.object.get(entry.offset() as usize)),
-                Type::TYPE_DOUBLE => Value::Double(self.object.get(entry.offset() as usize)),
-                Type::TYPE_BOOL => Value::Bool(self.object.get(entry.offset() as usize)),
-                Type::TYPE_STRING => Value::String(
-                    self.object
-                        .ref_at::<String>(entry.offset() as usize)
-                        .as_str(),
-                ),
-                Type::TYPE_BYTES => {
-                    Value::Bytes(self.object.get_slice::<u8>(entry.offset() as usize))
-                }
-                Type::TYPE_MESSAGE | Type::TYPE_GROUP => {
-                    let aux_entry = self.table.aux_entry_decode(entry);
-                    let offset = aux_entry.offset as usize;
-                    let msg = self.object.get::<Message>(offset);
-                    let dynamic_msg = DynamicMessage {
-                        object: unsafe { &mut *msg.0 },
-                        table: unsafe { &*aux_entry.child_table },
-                    };
-                    Value::Message(dynamic_msg)
-                }
-            }
-        }
-    }
-
     pub fn get_field_optional(
         &'msg self,
         field: &'pool FieldDescriptorProto,
@@ -358,19 +277,10 @@ impl<'pool, 'msg> DynamicMessage<'pool, 'msg> {
                 }
             };
             debug_assert!(needs_has_bit(field));
-            let mut has_bit = 0;
-            for f in self.table.descriptor.field().iter() {
-                if field.number() == f.number() {
-                    break;
-                }
-                if needs_has_bit(f) {
-                    has_bit += 1;
-                }
-            }
-            if !self.object.has_bit(has_bit as u8) {
-                None
-            } else {
+            if !self.object.has_bit(entry.has_bit_idx() as u8) {
                 Some(value)
+            } else {
+                None
             }
         }
     }
