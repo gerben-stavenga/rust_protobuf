@@ -1,14 +1,21 @@
 // protocrap-codegen/src/static_gen.rs
 
+use super::protocrap;
 use anyhow::Result;
 use proc_macro2::{Literal, TokenStream};
-use super::protocrap;
-use protocrap::{google::protobuf::FieldDescriptorProto::{ProtoType as FieldDescriptorProto, Type}, reflection::{DynamicMessage, Value, is_message, is_repeated, needs_has_bit}};
+use protocrap::{
+    google::protobuf::FieldDescriptorProto::{ProtoType as FieldDescriptorProto, Type},
+    reflection::{DynamicMessage, Value, is_message, is_repeated, needs_has_bit},
+};
 use quote::{ToTokens, format_ident, quote};
 
 fn full_name(name: &str) -> Vec<proc_macro2::Ident> {
     let mut path_parts = Vec::new();
-    path_parts.extend(["google", "protobuf"].iter().map(|s| format_ident!("{}", s)));
+    path_parts.extend(
+        ["google", "protobuf"]
+            .iter()
+            .map(|s| format_ident!("{}", s)),
+    );
     if name == "ExtensionRange" {
         path_parts.push(format_ident!("DescriptorProto"));
     }
@@ -70,7 +77,6 @@ fn calculate_has_bits(value: &DynamicMessage) -> Vec<u32> {
     has_bits
 }
 
-
 fn generate_has_bits_array(has_bits: &[u32]) -> TokenStream {
     let values: Vec<_> = has_bits
         .iter()
@@ -79,9 +85,7 @@ fn generate_has_bits_array(has_bits: &[u32]) -> TokenStream {
     quote! { [#(#values),*] }
 }
 
-fn generate_field_initializers(
-    value: &DynamicMessage,
-) -> Result<Vec<TokenStream>> {
+fn generate_field_initializers(value: &DynamicMessage) -> Result<Vec<TokenStream>> {
     let mut inits = Vec::new();
 
     let mut fields = Vec::from(value.descriptor().field());
@@ -101,7 +105,9 @@ fn generate_field_initializers(
     Ok(inits)
 }
 
-fn generate_repeated_scalar<T: Copy + ToTokens>(values: &[T]) -> Result<(TokenStream, TokenStream)> {
+fn generate_repeated_scalar<T: Copy + ToTokens>(
+    values: &[T],
+) -> Result<(TokenStream, TokenStream)> {
     let mut elements = Vec::new();
     let type_name = format_ident!("{}", std::any::type_name::<T>());
 
@@ -109,7 +115,7 @@ fn generate_repeated_scalar<T: Copy + ToTokens>(values: &[T]) -> Result<(TokenSt
         let elem_init = quote! {
             #value
         };
-        elements.push(elem_init);        
+        elements.push(elem_init);
     }
 
     let len = elements.len();
@@ -270,7 +276,9 @@ fn generate_default_value(field: &FieldDescriptorProto) -> TokenStream {
             protocrap::base::Message(core::ptr::null_mut())
         },
         Type::TYPE_BOOL => quote! { false },
-        Type::TYPE_INT32 | Type::TYPE_SINT32 | Type::TYPE_SFIXED32 | Type::TYPE_ENUM => quote! { 0i32 },
+        Type::TYPE_INT32 | Type::TYPE_SINT32 | Type::TYPE_SFIXED32 | Type::TYPE_ENUM => {
+            quote! { 0i32 }
+        }
         Type::TYPE_INT64 | Type::TYPE_SINT64 | Type::TYPE_SFIXED64 => quote! { 0i64 },
         Type::TYPE_UINT32 | Type::TYPE_FIXED32 => quote! { 0u32 },
         Type::TYPE_UINT64 | Type::TYPE_FIXED64 => quote! { 0u64 },

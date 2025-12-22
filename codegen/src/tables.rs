@@ -1,9 +1,9 @@
 use core::num;
 
+use super::protocrap;
 use crate::names::{rust_type_tokens, sanitize_field_name};
 use anyhow::Result;
 use proc_macro2::TokenStream;
-use super::protocrap;
 use protocrap::google::protobuf::DescriptorProto::ProtoType as DescriptorProto;
 use protocrap::google::protobuf::FieldDescriptorProto::ProtoType as FieldDescriptorProto;
 

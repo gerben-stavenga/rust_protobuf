@@ -16,7 +16,10 @@ pub fn make_medium(arena: &mut protocrap::arena::Arena) -> TestProto {
     let mut msg = TestProto::default();
     msg.set_x(42);
     msg.set_y(0xDEADBEEF);
-    msg.set_z(b"Hello World! This is a test string with some content.", arena);
+    msg.set_z(
+        b"Hello World! This is a test string with some content.",
+        arena,
+    );
     let child1 = msg.child1_mut(arena);
     child1.set_x(123);
     child1.set_y(456);
@@ -49,9 +52,7 @@ fn assert_roundtrip(msg: &TestProto) {
 
     println!("Roundtrip message: {:#?}", roundtrip_msg);
 
-    let roundtrip_data = roundtrip_msg
-        .encode_vec::<32>()
-        .expect("msg should encode");
+    let roundtrip_data = roundtrip_msg.encode_vec::<32>().expect("msg should encode");
 
     assert_eq!(roundtrip_data, data);
 }
@@ -115,5 +116,3 @@ fn test_large_serde_serialization() {
     let msg = make_large(&mut arena);
     assert_json_roundtrip(msg);
 }
-
-

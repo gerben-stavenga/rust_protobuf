@@ -7,9 +7,7 @@ use criterion::{
 use prost::Message;
 
 // Your crate
-use codegen_tests::{
-    Test::ProtoType as Test, make_large, make_medium, make_small
-};
+use codegen_tests::{Test::ProtoType as Test, make_large, make_medium, make_small};
 use protocrap::{ProtobufExt, arena};
 
 mod prost_gen {
@@ -50,12 +48,16 @@ fn bench_decode(c: &mut Criterion) {
 
     // Medium message
     let mut medium_arena = arena::Arena::new(&std::alloc::Global);
-    let medium_data = make_medium(&mut medium_arena).encode_vec::<32>().expect("should encode");
+    let medium_data = make_medium(&mut medium_arena)
+        .encode_vec::<32>()
+        .expect("should encode");
     bench_decoding(&mut group, "medium", &medium_data);
 
     // Large message
     let mut large_arena = arena::Arena::new(&std::alloc::Global);
-    let large_data = make_large(&mut large_arena).encode_vec::<32>().expect("should encode");
+    let large_data = make_large(&mut large_arena)
+        .encode_vec::<32>()
+        .expect("should encode");
     bench_decoding(&mut group, "large", &large_data);
 
     group.finish();

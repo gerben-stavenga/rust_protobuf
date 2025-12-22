@@ -11,7 +11,10 @@ fn main() -> Result<()> {
     println!("cargo:warning=Generating prost version...");
     prost_build::Config::new()
         .out_dir(&out_dir)
-        .compile_protos(&["../codegen/codegen-tests/proto/test.proto"], &["../codegen/codegen-tests/proto/"])?;
+        .compile_protos(
+            &["../codegen/codegen-tests/proto/test.proto"],
+            &["../codegen/codegen-tests/proto/"],
+        )?;
 
     Ok(())
 }

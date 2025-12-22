@@ -3,12 +3,12 @@
 use std::path::Path;
 
 use anyhow::Result;
-#[cfg(feature = "bootcrap")]
-use protocrap_stable as protocrap;
 #[cfg(not(feature = "bootcrap"))]
 use protocrap;
-use protocrap::google::protobuf::FileDescriptorSet::ProtoType as FileDescriptorSet;
 use protocrap::ProtobufExt;
+use protocrap::google::protobuf::FileDescriptorSet::ProtoType as FileDescriptorSet;
+#[cfg(feature = "bootcrap")]
+use protocrap_stable as protocrap;
 
 mod generator;
 mod names;

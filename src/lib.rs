@@ -186,8 +186,10 @@ pub trait ProtobufExt: Protobuf {
         let mut stack = Vec::new();
         let mut resumeable_encode = encoding::ResumeableEncode::<STACK_DEPTH>::new(self);
         loop {
-            match resumeable_encode.resume_encode(&mut buffer)
-                .ok_or(anyhow::anyhow!("Message tree too deep"))? {
+            match resumeable_encode
+                .resume_encode(&mut buffer)
+                .ok_or(anyhow::anyhow!("Message tree too deep"))?
+            {
                 encoding::ResumeResult::Done(buf) => {
                     let len = buf.len();
                     let end = buffer.len();

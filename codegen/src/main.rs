@@ -3,10 +3,10 @@
 use std::fs;
 use std::io::{self, Read, Write};
 
-#[cfg(feature = "bootcrap")]
-use protocrap_stable as protocrap;
 #[cfg(not(feature = "bootcrap"))]
 use protocrap;
+#[cfg(feature = "bootcrap")]
+use protocrap_stable as protocrap;
 
 mod generator;
 mod names;

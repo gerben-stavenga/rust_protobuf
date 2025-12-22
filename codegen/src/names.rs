@@ -1,9 +1,9 @@
 // protocrap-codegen/src/names.rs
 
-use proc_macro2::TokenStream;
 use super::protocrap;
-use protocrap::google::protobuf::FieldDescriptorProto::Type;
+use proc_macro2::TokenStream;
 use protocrap::google::protobuf::FieldDescriptorProto::ProtoType as FieldDescriptorProto;
+use protocrap::google::protobuf::FieldDescriptorProto::Type;
 use quote::{format_ident, quote};
 
 const RUST_KEYWORDS: &[&str] = &[

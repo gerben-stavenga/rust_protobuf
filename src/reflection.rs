@@ -1,11 +1,17 @@
 use std::alloc::Allocator;
 
 use crate::{
-    Protobuf, arena::Arena, base::{Message, Object}, containers::{Bytes, RepeatedField}, google::protobuf::{
+    Protobuf,
+    arena::Arena,
+    base::{Message, Object},
+    containers::{Bytes, RepeatedField},
+    google::protobuf::{
         DescriptorProto::ProtoType as DescriptorProto,
         FieldDescriptorProto::{Label, ProtoType as FieldDescriptorProto, Type},
         FileDescriptorProto::ProtoType as FileDescriptorProto,
-    }, tables::Table, wire
+    },
+    tables::Table,
+    wire,
 };
 
 pub fn field_kind_tokens(field: &&FieldDescriptorProto) -> wire::FieldKind {
@@ -86,7 +92,7 @@ pub fn debug_message<T: Protobuf>(msg: &T, f: &mut core::fmt::Formatter<'_>) -> 
     dynamic_msg.fmt(f)
 }
 
-/* 
+/*
 struct DescriptorPool {
     pub arena: Arena<'static>,
 
@@ -159,10 +165,7 @@ impl<'pool, 'msg> DynamicMessage<'pool, 'msg> {
         None
     }
 
-    pub fn get_field(
-        &'msg self,
-        field: &'pool FieldDescriptorProto,
-    ) -> Option<Value<'pool, 'msg>> {
+    pub fn get_field(&'msg self, field: &'pool FieldDescriptorProto) -> Option<Value<'pool, 'msg>> {
         let entry = self.table.entry(field.number() as u32).unwrap();
         if field.label().unwrap() == Label::LABEL_REPEATED {
             // Repeated field

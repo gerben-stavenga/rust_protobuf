@@ -1,18 +1,18 @@
 // protocrap-codegen/src/generator.rs
 
+use super::protocrap;
 use crate::names::*;
 use crate::tables;
 use anyhow::Result;
 use proc_macro2::TokenStream;
-use quote::{format_ident, quote};
-use super::protocrap;
+use protocrap::google::protobuf::DescriptorProto::ProtoType as DescriptorProto;
+use protocrap::google::protobuf::EnumDescriptorProto::ProtoType as EnumDescriptorProto;
+use protocrap::google::protobuf::FieldDescriptorProto::Type;
+use protocrap::google::protobuf::FileDescriptorProto::ProtoType as FileDescriptorProto;
+use protocrap::google::protobuf::FileDescriptorSet::ProtoType as FileDescriptorSet;
 use protocrap::reflection::is_repeated;
 use protocrap::reflection::needs_has_bit;
-use protocrap::google::protobuf::FileDescriptorSet::ProtoType as FileDescriptorSet;
-use protocrap::google::protobuf::FileDescriptorProto::ProtoType as FileDescriptorProto;
-use protocrap::google::protobuf::DescriptorProto::ProtoType as DescriptorProto;
-use protocrap::google::protobuf::FieldDescriptorProto::Type;
-use protocrap::google::protobuf::EnumDescriptorProto::ProtoType as EnumDescriptorProto;
+use quote::{format_ident, quote};
 
 pub fn generate_file_set(file_set: &FileDescriptorSet) -> Result<TokenStream> {
     let mut items = Vec::new();
@@ -154,7 +154,11 @@ fn generate_message_impl(
         .collect::<Result<Vec<_>, _>>()?;
 
     // Calculate has bits
-    let has_bit_fields: Vec<_> = message.field().iter().filter(|f| needs_has_bit(f)).collect();
+    let has_bit_fields: Vec<_> = message
+        .field()
+        .iter()
+        .filter(|f| needs_has_bit(f))
+        .collect();
 
     let has_bits_count = has_bit_fields.len();
     let has_bits_words = (has_bits_count + 31) / 32;
