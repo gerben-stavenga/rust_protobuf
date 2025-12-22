@@ -203,7 +203,7 @@ pub trait ProtobufExt: Protobuf {
                 }
             };
         }
-        while let Some(mut old_buffer) = stack.pop() {
+        while let Some(old_buffer) = stack.pop() {
             buffer.extend_from_slice(&old_buffer);
         }
         Ok(buffer)

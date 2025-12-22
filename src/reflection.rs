@@ -86,6 +86,7 @@ pub fn debug_message<T: Protobuf>(msg: &T, f: &mut core::fmt::Formatter<'_>) -> 
     dynamic_msg.fmt(f)
 }
 
+/* 
 struct DescriptorPool {
     pub arena: Arena<'static>,
 
@@ -111,6 +112,7 @@ impl DescriptorPool {
             .push(Message(ptr as *mut Object), &mut self.arena);
     }
 }
+*/
 
 pub struct DynamicMessage<'pool, 'msg> {
     pub object: &'msg Object,

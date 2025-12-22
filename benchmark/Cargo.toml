@@ -13,6 +13,9 @@ serde = { version = "1.0.228" }
 [dev-dependencies]
 criterion = "0.5"
 
+[build-dependencies]
+prost-build = "0.14.1"
+
 [[bench]]
 name = "proto_bench"
 harness = false

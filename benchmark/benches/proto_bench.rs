@@ -8,10 +8,13 @@ use prost::Message;
 
 // Your crate
 use codegen_tests::{
-    Test::ProtoType as Test, encode_test, make_large_prost, make_medium_prost, make_protocrap,
-    make_small_prost, prost_gen,
+    Test::ProtoType as Test, make_large, make_medium, make_small
 };
 use protocrap::{ProtobufExt, arena};
+
+mod prost_gen {
+    include!(concat!(env!("OUT_DIR"), "/_.rs"));
+}
 
 fn bench_decoding(
     group: &mut BenchmarkGroup<'_, impl Measurement>,
@@ -42,15 +45,17 @@ fn bench_decode(c: &mut Criterion) {
     let mut group = c.benchmark_group("decode");
 
     // Small message
-    let small_data = encode_test(&make_small_prost());
+    let small_data = make_small().encode_vec::<32>().expect("should encode");
     bench_decoding(&mut group, "small", &small_data);
 
     // Medium message
-    let medium_data = encode_test(&make_medium_prost());
+    let mut medium_arena = arena::Arena::new(&std::alloc::Global);
+    let medium_data = make_medium(&mut medium_arena).encode_vec::<32>().expect("should encode");
     bench_decoding(&mut group, "medium", &medium_data);
 
     // Large message
-    let large_data = encode_test(&make_large_prost());
+    let mut large_arena = arena::Arena::new(&std::alloc::Global);
+    let large_data = make_large(&mut large_arena).encode_vec::<32>().expect("should encode");
     bench_decoding(&mut group, "large", &large_data);
 
     group.finish();
@@ -59,10 +64,10 @@ fn bench_decode(c: &mut Criterion) {
 fn bench_encoding(
     c: &mut BenchmarkGroup<'_, impl Measurement>,
     bench_function_name: &str,
-    prost_msg: &prost_gen::Test,
+    protocrap_msg: &Test,
 ) {
-    let mut arena = crate::arena::Arena::new(&std::alloc::Global);
-    let protocrap_msg = make_protocrap(prost_msg, &mut arena);
+    let data = protocrap_msg.encode_vec::<32>().expect("should encode");
+    let prost_msg = prost_gen::Test::decode(data.as_slice()).unwrap();
 
     c.bench_function(&format!("{}/protocrap", bench_function_name), |b| {
         let mut buf = vec![0u8; 4096];
@@ -88,15 +93,17 @@ fn bench_encode(c: &mut Criterion) {
     let mut group = c.benchmark_group("encode");
 
     // Small
-    let small_prost = make_small_prost();
+    let small_prost = make_small();
     bench_encoding(&mut group, "small", &small_prost);
 
     // Medium
-    let medium_prost = make_medium_prost();
+    let mut medium_arena = arena::Arena::new(&std::alloc::Global);
+    let medium_prost = make_medium(&mut medium_arena);
     bench_encoding(&mut group, "medium", &medium_prost);
 
     // Large
-    let large_prost = make_large_prost();
+    let mut large_arena = arena::Arena::new(&std::alloc::Global);
+    let large_prost = make_large(&mut large_arena);
     bench_encoding(&mut group, "large", &large_prost);
 
     group.finish();
