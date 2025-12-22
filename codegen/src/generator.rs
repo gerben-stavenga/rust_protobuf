@@ -262,6 +262,88 @@ fn generate_message_impl(
     })
 }
 
+fn parse_scalar_default(field: &protocrap::google::protobuf::FieldDescriptorProto::ProtoType) -> Option<TokenStream> {
+    use protocrap::google::protobuf::FieldDescriptorProto::Type;
+
+    if !field.has_default_value() {
+        return None;
+    }
+
+    let default_str = field.default_value().trim();
+    if default_str.is_empty() {
+        return None;
+    }
+
+    match field.r#type()? {
+        Type::TYPE_INT32 | Type::TYPE_SINT32 | Type::TYPE_SFIXED32 => {
+            if let Ok(value) = default_str.parse::<i32>() {
+                Some(quote! { #value })
+            } else {
+                None
+            }
+        }
+        Type::TYPE_INT64 | Type::TYPE_SINT64 | Type::TYPE_SFIXED64 => {
+            if let Ok(value) = default_str.parse::<i64>() {
+                Some(quote! { #value })
+            } else {
+                None
+            }
+        }
+        Type::TYPE_UINT32 | Type::TYPE_FIXED32 => {
+            if let Ok(value) = default_str.parse::<u32>() {
+                Some(quote! { #value })
+            } else {
+                None
+            }
+        }
+        Type::TYPE_UINT64 | Type::TYPE_FIXED64 => {
+            if let Ok(value) = default_str.parse::<u64>() {
+                Some(quote! { #value })
+            } else {
+                None
+            }
+        }
+        Type::TYPE_BOOL => {
+            match default_str {
+                "true" => Some(quote! { true }),
+                "false" => Some(quote! { false }),
+                _ => None,
+            }
+        }
+        Type::TYPE_FLOAT => {
+            // Handle special float values
+            match default_str {
+                "inf" => Some(quote! { f32::INFINITY }),
+                "-inf" => Some(quote! { f32::NEG_INFINITY }),
+                "nan" => Some(quote! { f32::NAN }),
+                _ => {
+                    if let Ok(value) = default_str.parse::<f32>() {
+                        Some(quote! { #value })
+                    } else {
+                        None
+                    }
+                }
+            }
+        }
+        Type::TYPE_DOUBLE => {
+            // Handle special double values
+            match default_str {
+                "inf" => Some(quote! { f64::INFINITY }),
+                "-inf" => Some(quote! { f64::NEG_INFINITY }),
+                "nan" => Some(quote! { f64::NAN }),
+                _ => {
+                    if let Ok(value) = default_str.parse::<f64>() {
+                        Some(quote! { #value })
+                    } else {
+                        None
+                    }
+                }
+            }
+        }
+        _ => None, // Other types not supported yet
+    }
+}
+
 fn generate_accessors(
     message: &DescriptorProto,
     has_bit_map: &std::collections::HashMap<i32, usize>,
@@ -455,9 +537,26 @@ fn generate_accessors(
                 _ => {
                     // Scalar types
                     let return_type = rust_element_type_tokens(field);
+
+                    // Parse default value if present
+                    let default_value = parse_scalar_default(field);
+
+                    let getter_impl = if has_bit_map.contains_key(&field.number()) && default_value.is_some() {
+                        let default_tokens = default_value.unwrap();
+                        quote! {
+                            if self.#has_name() {
+                                self.#field_name
+                            } else {
+                                #default_tokens
+                            }
+                        }
+                    } else {
+                        quote! { self.#field_name }
+                    };
+
                     methods.push(quote! {
                         pub const fn #field_name(&self) -> #return_type {
-                            self.#field_name
+                            #getter_impl
                         }
 
                         pub const fn #optional_name(&self) -> Option<#return_type> {

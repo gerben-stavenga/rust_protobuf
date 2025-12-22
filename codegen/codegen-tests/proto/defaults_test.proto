@@ -1,0 +1,13 @@
+syntax = "proto2";
+
+message DefaultsTest {
+    optional int32 port = 1 [default = 8080];
+    optional bool enabled = 2 [default = true];
+    optional float ratio = 3 [default = 3.14];
+    optional double precise = 4 [default = 2.71828];
+    optional uint32 count = 5 [default = 42];
+    optional int64 big_number = 6 [default = -9223372036854775808];
+    optional float special_inf = 7 [default = inf];
+    optional float special_neg_inf = 8 [default = -inf];
+    optional float special_nan = 9 [default = nan];
+}
