@@ -4,7 +4,7 @@ use crate::{
     Protobuf,
     arena::Arena,
     base::{Message, Object},
-    containers::{Bytes, RepeatedField},
+    containers::{Bytes, String, RepeatedField},
     google::protobuf::{
         DescriptorProto::ProtoType as DescriptorProto,
         FieldDescriptorProto::{Label, ProtoType as FieldDescriptorProto, Type},

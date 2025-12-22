@@ -189,8 +189,9 @@ fn generate_field_value(value: Value) -> Result<(TokenStream, TokenStream)> {
         Value::RepeatedString(list) => {
             let mut elements = Vec::new();
             for s in list {
+                let s_str = s.as_str();
                 let elem_init = quote! {
-                    protocrap::containers::String::from_static(#s)
+                    protocrap::containers::String::from_static(#s_str)
                 };
                 elements.push(elem_init);
             }
