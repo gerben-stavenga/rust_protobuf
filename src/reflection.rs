@@ -152,7 +152,7 @@ impl<'pool, 'msg> DynamicMessage<'pool, 'msg> {
         self.table
     }
 
-    pub fn descriptor(&self) -> &DescriptorProto {
+    pub fn descriptor(&self) -> &'pool DescriptorProto {
         self.table.descriptor
     }
 

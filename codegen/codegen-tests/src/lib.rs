@@ -78,7 +78,7 @@ fn test_large_roundtrips() {
 
 #[cfg(test)]
 fn assert_json_roundtrip(msg: TestProto) {
-    let serialized = serde_json::to_string(&protocrap::serde::SerdeProtobuf::new(&msg))
+    let serialized = serde_json::to_string(&protocrap::reflection::DynamicMessage::new(&msg))
         .expect("should serialize");
 
     println!("Serialized JSON: {}", serialized);
