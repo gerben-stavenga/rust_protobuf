@@ -5621,7 +5621,11 @@ pub mod google {
                     }
                 }
                 pub const fn client_streaming(&self) -> bool {
-                    self.client_streaming
+                    if self.has_client_streaming() {
+                        self.client_streaming
+                    } else {
+                        false
+                    }
                 }
                 pub const fn get_client_streaming(&self) -> Option<bool> {
                     if self.has_client_streaming() {
@@ -5651,7 +5655,11 @@ pub mod google {
                     }
                 }
                 pub const fn server_streaming(&self) -> bool {
-                    self.server_streaming
+                    if self.has_server_streaming() {
+                        self.server_streaming
+                    } else {
+                        false
+                    }
                 }
                 pub const fn get_server_streaming(&self) -> Option<bool> {
                     if self.has_server_streaming() {
@@ -5996,7 +6004,11 @@ pub mod google {
                     }
                 }
                 pub const fn java_multiple_files(&self) -> bool {
-                    self.java_multiple_files
+                    if self.has_java_multiple_files() {
+                        self.java_multiple_files
+                    } else {
+                        false
+                    }
                 }
                 pub const fn get_java_multiple_files(&self) -> Option<bool> {
                     if self.has_java_multiple_files() {
@@ -6059,7 +6071,11 @@ pub mod google {
                     }
                 }
                 pub const fn java_string_check_utf8(&self) -> bool {
-                    self.java_string_check_utf8
+                    if self.has_java_string_check_utf8() {
+                        self.java_string_check_utf8
+                    } else {
+                        false
+                    }
                 }
                 pub const fn get_java_string_check_utf8(&self) -> Option<bool> {
                     if self.has_java_string_check_utf8() {
@@ -6163,7 +6179,11 @@ pub mod google {
                     }
                 }
                 pub const fn cc_generic_services(&self) -> bool {
-                    self.cc_generic_services
+                    if self.has_cc_generic_services() {
+                        self.cc_generic_services
+                    } else {
+                        false
+                    }
                 }
                 pub const fn get_cc_generic_services(&self) -> Option<bool> {
                     if self.has_cc_generic_services() {
@@ -6193,7 +6213,11 @@ pub mod google {
                     }
                 }
                 pub const fn java_generic_services(&self) -> bool {
-                    self.java_generic_services
+                    if self.has_java_generic_services() {
+                        self.java_generic_services
+                    } else {
+                        false
+                    }
                 }
                 pub const fn get_java_generic_services(&self) -> Option<bool> {
                     if self.has_java_generic_services() {
@@ -6226,7 +6250,11 @@ pub mod google {
                     }
                 }
                 pub const fn py_generic_services(&self) -> bool {
-                    self.py_generic_services
+                    if self.has_py_generic_services() {
+                        self.py_generic_services
+                    } else {
+                        false
+                    }
                 }
                 pub const fn get_py_generic_services(&self) -> Option<bool> {
                     if self.has_py_generic_services() {
@@ -6256,7 +6284,11 @@ pub mod google {
                     }
                 }
                 pub const fn php_generic_services(&self) -> bool {
-                    self.php_generic_services
+                    if self.has_php_generic_services() {
+                        self.php_generic_services
+                    } else {
+                        false
+                    }
                 }
                 pub const fn get_php_generic_services(&self) -> Option<bool> {
                     if self.has_php_generic_services() {
@@ -6289,7 +6321,7 @@ pub mod google {
                     }
                 }
                 pub const fn deprecated(&self) -> bool {
-                    self.deprecated
+                    if self.has_deprecated() { self.deprecated } else { false }
                 }
                 pub const fn get_deprecated(&self) -> Option<bool> {
                     if self.has_deprecated() { Some(self.deprecated) } else { None }
@@ -6315,7 +6347,11 @@ pub mod google {
                     }
                 }
                 pub const fn cc_enable_arenas(&self) -> bool {
-                    self.cc_enable_arenas
+                    if self.has_cc_enable_arenas() {
+                        self.cc_enable_arenas
+                    } else {
+                        true
+                    }
                 }
                 pub const fn get_cc_enable_arenas(&self) -> Option<bool> {
                     if self.has_cc_enable_arenas() {
@@ -8042,7 +8078,11 @@ pub mod google {
                     }
                 }
                 pub const fn message_set_wire_format(&self) -> bool {
-                    self.message_set_wire_format
+                    if self.has_message_set_wire_format() {
+                        self.message_set_wire_format
+                    } else {
+                        false
+                    }
                 }
                 pub const fn get_message_set_wire_format(&self) -> Option<bool> {
                     if self.has_message_set_wire_format() {
@@ -8075,7 +8115,11 @@ pub mod google {
                     }
                 }
                 pub const fn no_standard_descriptor_accessor(&self) -> bool {
-                    self.no_standard_descriptor_accessor
+                    if self.has_no_standard_descriptor_accessor() {
+                        self.no_standard_descriptor_accessor
+                    } else {
+                        false
+                    }
                 }
                 pub const fn get_no_standard_descriptor_accessor(&self) -> Option<bool> {
                     if self.has_no_standard_descriptor_accessor() {
@@ -8108,7 +8152,7 @@ pub mod google {
                     }
                 }
                 pub const fn deprecated(&self) -> bool {
-                    self.deprecated
+                    if self.has_deprecated() { self.deprecated } else { false }
                 }
                 pub const fn get_deprecated(&self) -> Option<bool> {
                     if self.has_deprecated() { Some(self.deprecated) } else { None }
@@ -9830,7 +9874,7 @@ pub mod google {
                     }
                 }
                 pub const fn lazy(&self) -> bool {
-                    self.lazy
+                    if self.has_lazy() { self.lazy } else { false }
                 }
                 pub const fn get_lazy(&self) -> Option<bool> {
                     if self.has_lazy() { Some(self.lazy) } else { None }
@@ -9856,7 +9900,7 @@ pub mod google {
                     }
                 }
                 pub const fn unverified_lazy(&self) -> bool {
-                    self.unverified_lazy
+                    if self.has_unverified_lazy() { self.unverified_lazy } else { false }
                 }
                 pub const fn get_unverified_lazy(&self) -> Option<bool> {
                     if self.has_unverified_lazy() {
@@ -9886,7 +9930,7 @@ pub mod google {
                     }
                 }
                 pub const fn deprecated(&self) -> bool {
-                    self.deprecated
+                    if self.has_deprecated() { self.deprecated } else { false }
                 }
                 pub const fn get_deprecated(&self) -> Option<bool> {
                     if self.has_deprecated() { Some(self.deprecated) } else { None }
@@ -9912,7 +9956,7 @@ pub mod google {
                     }
                 }
                 pub const fn weak(&self) -> bool {
-                    self.weak
+                    if self.has_weak() { self.weak } else { false }
                 }
                 pub const fn get_weak(&self) -> Option<bool> {
                     if self.has_weak() { Some(self.weak) } else { None }
@@ -9938,7 +9982,7 @@ pub mod google {
                     }
                 }
                 pub const fn debug_redact(&self) -> bool {
-                    self.debug_redact
+                    if self.has_debug_redact() { self.debug_redact } else { false }
                 }
                 pub const fn get_debug_redact(&self) -> Option<bool> {
                     if self.has_debug_redact() { Some(self.debug_redact) } else { None }
@@ -12610,7 +12654,7 @@ pub mod google {
                     }
                 }
                 pub const fn deprecated(&self) -> bool {
-                    self.deprecated
+                    if self.has_deprecated() { self.deprecated } else { false }
                 }
                 pub const fn get_deprecated(&self) -> Option<bool> {
                     if self.has_deprecated() { Some(self.deprecated) } else { None }
@@ -13916,7 +13960,7 @@ pub mod google {
                     }
                 }
                 pub const fn deprecated(&self) -> bool {
-                    self.deprecated
+                    if self.has_deprecated() { self.deprecated } else { false }
                 }
                 pub const fn get_deprecated(&self) -> Option<bool> {
                     if self.has_deprecated() { Some(self.deprecated) } else { None }
@@ -13979,7 +14023,7 @@ pub mod google {
                     }
                 }
                 pub const fn debug_redact(&self) -> bool {
-                    self.debug_redact
+                    if self.has_debug_redact() { self.debug_redact } else { false }
                 }
                 pub const fn get_debug_redact(&self) -> Option<bool> {
                     if self.has_debug_redact() { Some(self.debug_redact) } else { None }
@@ -15230,7 +15274,7 @@ pub mod google {
                     }
                 }
                 pub const fn deprecated(&self) -> bool {
-                    self.deprecated
+                    if self.has_deprecated() { self.deprecated } else { false }
                 }
                 pub const fn get_deprecated(&self) -> Option<bool> {
                     if self.has_deprecated() { Some(self.deprecated) } else { None }
@@ -16458,7 +16502,7 @@ pub mod google {
                     }
                 }
                 pub const fn deprecated(&self) -> bool {
-                    self.deprecated
+                    if self.has_deprecated() { self.deprecated } else { false }
                 }
                 pub const fn get_deprecated(&self) -> Option<bool> {
                     if self.has_deprecated() { Some(self.deprecated) } else { None }

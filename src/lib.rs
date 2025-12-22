@@ -19,7 +19,7 @@ include!("descriptor.pc.rs");
 #[cfg(feature = "serde_support")]
 pub mod serde;
 
-pub trait Protobuf: Default {
+pub trait Protobuf: Default + core::fmt::Debug {
     fn table() -> &'static tables::Table;
     fn descriptor_proto() -> &'static google::protobuf::DescriptorProto::ProtoType {
         Self::table().descriptor
@@ -214,8 +214,23 @@ pub trait ProtobufExt: Protobuf {
 
 impl<T: Protobuf> ProtobufExt for T {}
 
-#[cfg(test)]
-mod tests {
+pub mod tests {
+    use crate::{Protobuf, ProtobufExt};
+
+    pub fn assert_roundtrip<T: Protobuf>(msg: &T) {
+        let data = msg.encode_vec::<32>().expect("msg should encode");
+
+        let mut arena = crate::arena::Arena::new(&std::alloc::Global);
+        let mut roundtrip_msg = T::default();
+        assert!(roundtrip_msg.decode_flat::<32>(&mut arena, &data));
+
+        println!("Roundtrip message: {:#?}", roundtrip_msg);
+
+        let roundtrip_data = roundtrip_msg.encode_vec::<32>().expect("msg should encode");
+
+        assert_eq!(roundtrip_data, data);
+    }
+
     #[test]
     fn descriptor_accessors() {
         use crate::Protobuf;
@@ -241,6 +256,7 @@ mod tests {
         let encoded = file_descriptor.encode_flat::<32>(&mut buffer1).unwrap();
 
         println!("Encoded descriptor.proto ({} bytes)", encoded.len());
+        println!("syntax: {}, edition: {:?}", file_descriptor.syntax(), file_descriptor.edition());
 
         let mut message = crate::google::protobuf::FileDescriptorProto::ProtoType::default();
         let mut arena = crate::arena::Arena::new(&std::alloc::Global);

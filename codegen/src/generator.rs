@@ -1,5 +1,7 @@
 // protocrap-codegen/src/generator.rs
 
+use std::panic;
+
 use super::protocrap;
 use crate::names::*;
 use crate::tables;
@@ -319,41 +321,37 @@ fn unescape_proto_string(s: &str) -> Result<String> {
 }
 
 fn parse_scalar_default(field: &protocrap::google::protobuf::FieldDescriptorProto::ProtoType) -> Option<TokenStream> {
-    use protocrap::google::protobuf::FieldDescriptorProto::Type;
-
-    if !field.has_default_value() {
-        return None;
-    }
-
-    let default_str = field.default_value().trim();
-    if default_str.is_empty() {
-        return None;
-    }
-
+    let Some(default_str) = field.get_default_value() else {
+      return None;
+    };
     match field.r#type()? {
         Type::TYPE_INT32 | Type::TYPE_SINT32 | Type::TYPE_SFIXED32 => {
-            if let Ok(value) = default_str.parse::<i32>() {
+            let value = default_str.parse::<i32>().unwrap();
+            if value != 0 {
                 Some(quote! { #value })
             } else {
                 None
             }
         }
         Type::TYPE_INT64 | Type::TYPE_SINT64 | Type::TYPE_SFIXED64 => {
-            if let Ok(value) = default_str.parse::<i64>() {
+            let value = default_str.parse::<i64>().unwrap();
+            if value != 0 {
                 Some(quote! { #value })
             } else {
                 None
             }
         }
         Type::TYPE_UINT32 | Type::TYPE_FIXED32 => {
-            if let Ok(value) = default_str.parse::<u32>() {
+            let value = default_str.parse::<u32>().unwrap();
+            if value != 0 {
                 Some(quote! { #value })
             } else {
                 None
             }
         }
         Type::TYPE_UINT64 | Type::TYPE_FIXED64 => {
-            if let Ok(value) = default_str.parse::<u64>() {
+            let value = default_str.parse::<u64>().unwrap();
+            if value != 0 {
                 Some(quote! { #value })
             } else {
                 None
@@ -363,7 +361,7 @@ fn parse_scalar_default(field: &protocrap::google::protobuf::FieldDescriptorProt
             match default_str {
                 "true" => Some(quote! { true }),
                 "false" => Some(quote! { false }),
-                _ => None,
+                _ => panic!("Invalid boolean default value: {}", default_str),
             }
         }
         Type::TYPE_FLOAT => {
@@ -373,7 +371,8 @@ fn parse_scalar_default(field: &protocrap::google::protobuf::FieldDescriptorProt
                 "-inf" => Some(quote! { f32::NEG_INFINITY }),
                 "nan" => Some(quote! { f32::NAN }),
                 _ => {
-                    if let Ok(value) = default_str.parse::<f32>() {
+                    let value = default_str.parse::<f32>().unwrap();
+                    if value != 0.0 {
                         Some(quote! { #value })
                     } else {
                         None
@@ -388,7 +387,8 @@ fn parse_scalar_default(field: &protocrap::google::protobuf::FieldDescriptorProt
                 "-inf" => Some(quote! { f64::NEG_INFINITY }),
                 "nan" => Some(quote! { f64::NAN }),
                 _ => {
-                    if let Ok(value) = default_str.parse::<f64>() {
+                    let value = default_str.parse::<f64>().unwrap();
+                    if value != 0.0 {
                         Some(quote! { #value })
                     } else {
                         None
@@ -399,8 +399,14 @@ fn parse_scalar_default(field: &protocrap::google::protobuf::FieldDescriptorProt
         Type::TYPE_STRING => {
             // Unescape the proto string and let quote! handle Rust escaping
             match unescape_proto_string(default_str) {
-                Ok(unescaped) => Some(quote! { #unescaped }),
-                Err(_) => None,
+                Ok(unescaped) => {
+                    if unescaped.is_empty() {
+                        None
+                    } else {
+                        Some(quote! { #unescaped })
+                    }
+                }
+                Err(_) => panic!("Invalid string default value: {}", default_str),
             }
         }
         _ => None, // Other types not supported yet
@@ -620,7 +626,7 @@ fn generate_accessors(
                     // Parse default value if present
                     let default_value = parse_scalar_default(field);
 
-                    let getter_impl = if has_bit_map.contains_key(&field.number()) && default_value.is_some() {
+                    let getter_impl = if default_value.is_some() {
                         let default_tokens = default_value.unwrap();
                         quote! {
                             if self.#has_name() {

@@ -12,13 +12,16 @@ impl<'msg> serde::Serialize for DynamicMessage<'static, 'msg> {
         S: serde::Serializer,
     {
         let descriptor = self.descriptor();
-        let mut struct_serializer = serializer.serialize_struct(descriptor.name(), descriptor.field().len())?;
+        let mut fields = Vec::new();
         for &field in descriptor.field() {
             let Some(v) = self.get_field(field) else {
-                struct_serializer.skip_field(field.name())?;
                 continue;
             };
-            struct_serializer.serialize_field(field.name(), &v)?;
+            fields.push((field.name(), v));
+        }
+        let mut struct_serializer = serializer.serialize_struct(descriptor.name(), fields.len())?;
+        for (name, value) in fields {
+            struct_serializer.serialize_field(name, &value)?;
         }
         struct_serializer.end()
     }
