@@ -74,23 +74,90 @@ We don't implement maps, they are treated as repeated fields of key/value pairs.
 ```rust
 use protocrap::*;
 
-let msg = MyMessage::parse_from_bufread(&data)?;
-let other_msg = MyMessage::parse_from_async_bufread(&async_data).await;
+// Create a message
+let mut arena = arena::Arena::new(&std::alloc::Global);
+let mut msg = MyMessage::default();
+msg.set_name("Hello", &mut arena);
+msg.set_id(42);
 
-// Serialize 
-let mut bytes = std::vec::Vec::new();
-msg.serialize(&mut bytes)?;
+// Encode to bytes
+let bytes = msg.encode_vec::<32>()?;
+
+// Decode from bytes
+let mut decoded = MyMessage::default();
+decoded.decode_flat::<32>(&mut arena, &bytes);
+
+// Async decoding
+let mut async_msg = MyMessage::default();
+async_msg.decode_from_async_bufread::<32>(&mut arena, &mut async_reader).await?;
 ```
 
-## Benchmarks
+## Code Generation
+
+Generate Rust code from protobuf definitions:
+
+```bash
+# Generate descriptor set from .proto file
+protoc --include_imports --descriptor_set_out=descriptor.bin my_types.proto
+
+# Generate Rust code
+cargo run -p protocrap-codegen -- descriptor.bin my_types.pc.rs
+```
+
+For working on protocrap itself (regenerating descriptor.pc.rs):
+
+```bash
+# Normal update (uses current protocrap)
+./generate_descriptor.sh
+
+# Bootstrap mode (uses protocrap_stable for table layout changes)
+./generate_descriptor.sh bootcrap
+```
+
+## Runtime Reflection
+
+Protocrap includes a powerful reflection API for dynamic message inspection:
+
+```rust
+use protocrap::reflection::{DescriptorPool, DynamicMessage};
+
+// Create a descriptor pool and load file descriptors
+let mut pool = DescriptorPool::new(&std::alloc::Global);
+pool.add_file(&file_descriptor);
+
+// Decode a message dynamically
+let dynamic_msg = pool.decode_message("package.MessageType", &bytes)?;
+
+// Inspect fields at runtime
+for field in dynamic_msg.descriptor().field() {
+    if let Some(value) = dynamic_msg.get_field(field) {
+        println!("{}: {:?}", field.name(), value);
+    }
+}
+```
+
+## Features
+
+- **Serde support**: Optional serde serialization/deserialization via reflection
+- **No-std compatible**: Works in embedded environments (with `no_std` feature)
+- **Custom allocators**: Full control over memory placement via Arena API
+- **Async support**: First-class async/await support without code duplication
 
 ## Status
-🚧 **Under Construction** - Not ready for use
+🚧 **Alpha** - Core functionality working, API may change
 
-- [x] Basic parsing
-- [x] Arena allocation
-- [x] Basic protobuf spec compliance
-- [ ] Full protobuf spec compliance
-- [x] Code generation tools
-- [ ] Documentation
+- [x] Basic parsing and serialization
+- [x] Arena allocation with custom allocator support
+- [x] Table-driven codec
+- [x] Code generation from .proto files
+- [x] Runtime reflection API
+- [x] Serde integration
+- [x] Async/sync streaming support
+- [x] Default value support
+- [x] Self-hosted (uses own implementation to parse descriptor.proto)
+- [ ] Map support (partial - treated as repeated key/value)
+- [ ] Full documentation
+- [ ] Published to crates.io
+
+See [TODO.md](TODO.md) for detailed roadmap.
 
