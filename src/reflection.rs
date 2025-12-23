@@ -1,13 +1,9 @@
 use crate::{
-    Protobuf,
-    base::{Message, Object},
-    containers::{Bytes, String},
-    google::protobuf::{
+    Protobuf, arena::Arena, base::{Message, Object}, containers::{Bytes, String}, google::protobuf::{
         DescriptorProto::ProtoType as DescriptorProto,
         FieldDescriptorProto::{Label, ProtoType as FieldDescriptorProto, Type},
-    },
-    tables::Table,
-    wire,
+        FileDescriptorProto::ProtoType as FileDescriptorProto,
+    }, tables::Table, wire
 };
 
 pub fn field_kind_tokens(field: &&FieldDescriptorProto) -> wire::FieldKind {
@@ -88,33 +84,317 @@ pub fn debug_message<T: Protobuf>(msg: &T, f: &mut core::fmt::Formatter<'_>) -> 
     dynamic_msg.fmt(f)
 }
 
-/*
-struct DescriptorPool {
-    pub arena: Arena<'static>,
-
-    //
-    files: RepeatedField<Message>,
-    //map: std::collections::HashMap<String, &'static FileDescriptorProto>,
+pub struct DescriptorPool<'alloc> {
+    arena: Arena<'alloc>,
+    tables: std::collections::HashMap<std::string::String, &'alloc Table>,
 }
 
-impl DescriptorPool {
-    pub fn new(alloc: &'static dyn Allocator) -> Self {
+impl<'alloc> DescriptorPool<'alloc> {
+    pub fn new(alloc: &'alloc dyn core::alloc::Allocator) -> Self {
         DescriptorPool {
             arena: Arena::new(alloc),
-            files: RepeatedField::new(),
+            tables: std::collections::HashMap::new(),
         }
     }
 
-    pub fn add_file(&mut self, file: FileDescriptorProto) {
-        let ptr = self.arena.alloc::<FileDescriptorProto>();
-        unsafe {
-            core::ptr::write(ptr, file);
+    /// Add a FileDescriptorProto to the pool
+    pub fn add_file(&mut self, file: &'alloc FileDescriptorProto) {
+        let package = if file.has_package() {
+            file.package()
+        } else {
+            ""
+        };
+
+        // First pass: build all tables (child table pointers may be null)
+        for message in file.message_type() {
+            let full_name = if package.is_empty() {
+                message.name().to_string()
+            } else {
+                format!("{}.{}", package, message.name())
+            };
+            self.add_message(message, &full_name);
         }
-        self.files
-            .push(Message(ptr as *mut Object), &mut self.arena);
+
+        // Second pass: patch aux entries with correct child table pointers
+        for message in file.message_type() {
+            let full_name = if package.is_empty() {
+                message.name().to_string()
+            } else {
+                format!("{}.{}", package, message.name())
+            };
+            self.patch_message_aux_entries(&full_name);
+        }
+    }
+
+    fn add_message(&mut self, message: &'alloc DescriptorProto, full_name: &str) {
+        // Build table from descriptor
+        let table = self.build_table_from_descriptor(message);
+        self.tables.insert(full_name.to_string(), table);
+
+        // Add nested types
+        for nested in message.nested_type() {
+            let nested_full_name = format!("{}.{}", full_name, nested.name());
+            self.add_message(nested, &nested_full_name);
+        }
+    }
+
+    fn patch_message_aux_entries(&mut self, full_name: &str) {
+        use crate::tables::AuxTableEntry;
+
+        let table = match self.tables.get(full_name) {
+            Some(&t) => t,
+            None => return,
+        };
+
+        let descriptor = table.descriptor;
+
+        // Get aux entry pointer
+        unsafe {
+            let decode_ptr = (table as *const Table).add(1) as *const crate::decoding::TableEntry;
+            let aux_ptr = decode_ptr.add(table.num_decode_entries as usize) as *mut AuxTableEntry;
+
+            // Patch each aux entry with the correct child table pointer
+            let mut aux_idx = 0;
+            for field in descriptor.field() {
+                if is_message(field) {
+                    let child_type_name = field.type_name();
+                    let child_table_ptr = self.tables.get(child_type_name)
+                        .map(|&t| t as *const Table)
+                        .unwrap_or(core::ptr::null());
+
+                    if !child_table_ptr.is_null() {
+                        (*aux_ptr.add(aux_idx)).child_table = child_table_ptr;
+                    }
+                    aux_idx += 1;
+                }
+            }
+        }
+
+        // Patch nested types
+        for nested in descriptor.nested_type() {
+            let nested_full_name = format!("{}.{}", full_name, nested.name());
+            self.patch_message_aux_entries(&nested_full_name);
+        }
+    }
+
+    /// Create a DynamicMessage by decoding bytes with the given message type
+    pub fn decode_message(
+        &'alloc mut self,
+        message_type: &str,
+        bytes: &[u8],
+    ) -> anyhow::Result<DynamicMessage<'alloc, 'alloc>> {
+        let table = *self
+            .tables
+            .get(message_type)
+            .ok_or_else(|| anyhow::anyhow!("Message type '{}' not found in pool", message_type))?;
+
+        // Allocate object
+        let object = Object::create(table.size as u32, &mut self.arena);
+
+        // Decode
+        self.decode_into(object, table, bytes)?;
+
+        Ok(DynamicMessage { object, table })
+    }
+
+    fn build_table_from_descriptor(&mut self, descriptor: &'alloc DescriptorProto) -> &'alloc Table {
+        use crate::{decoding, encoding, tables::AuxTableEntry};
+
+        // Calculate sizes
+        let num_fields = descriptor.field().len();
+        let num_has_bits = descriptor
+            .field()
+            .iter()
+            .filter(|f| needs_has_bit(f))
+            .count();
+        let has_bits_size = ((num_has_bits + 31) / 32 * 4) as u32;
+
+        // Calculate max field number for sparse decode table
+        let max_field_number = descriptor
+            .field()
+            .iter()
+            .map(|f| f.number())
+            .max()
+            .unwrap_or(0);
+
+        if max_field_number > 2047 {
+            panic!("Field numbers > 2047 not supported yet");
+        }
+
+        let num_decode_entries = (max_field_number + 1) as usize;
+
+        // Calculate field offsets and total size
+        let mut offset = has_bits_size;
+        let mut field_offsets = std::vec::Vec::new();
+
+        for &field in descriptor.field() {
+            field_offsets.push((field, offset));
+            offset += self.field_size(field);
+        }
+
+        let total_size = offset;
+
+        // Count message fields for aux entries
+        let num_aux_entries = descriptor.field().iter().filter(|f| is_message(f)).count();
+
+        // Allocate table with entries
+        let layout = std::alloc::Layout::from_size_align(
+            core::mem::size_of::<Table>()
+                + num_fields * core::mem::size_of::<encoding::TableEntry>()
+                + num_decode_entries * core::mem::size_of::<decoding::TableEntry>()
+                + num_aux_entries * core::mem::size_of::<AuxTableEntry>(),
+            core::mem::align_of::<Table>(),
+        )
+        .unwrap();
+        let table_ptr = self.arena.alloc_raw(layout).as_ptr() as *mut Table;
+
+        unsafe {
+            // Initialize Table header
+            (*table_ptr).num_encode_entries = num_fields as u16;
+            (*table_ptr).num_decode_entries = num_decode_entries as u16;
+            (*table_ptr).size = total_size as u16;
+            // SAFETY: descriptor lives in arena with 'alloc lifetime, which outlives the table usage
+            (*table_ptr).descriptor = core::mem::transmute::<&'alloc DescriptorProto, &'static DescriptorProto>(descriptor);
+
+            // Build encode entries (before table header in memory)
+            let encode_ptr = table_ptr.byte_sub(num_fields * core::mem::size_of::<encoding::TableEntry>())
+                as *mut encoding::TableEntry;
+
+            // Build decode entries (after table header)
+            let decode_ptr = table_ptr.add(1) as *mut decoding::TableEntry;
+
+            // Build aux entries (after decode entries)
+            let aux_ptr = decode_ptr.add(num_decode_entries) as *mut AuxTableEntry;
+
+            // Build aux index map for message fields
+            let mut aux_index_map = std::collections::HashMap::<i32, usize>::new();
+            let mut aux_idx = 0;
+            for &field in descriptor.field() {
+                if is_message(field) {
+                    aux_index_map.insert(field.number(), aux_idx);
+                    aux_idx += 1;
+                }
+            }
+
+            // Build encode entries
+            let mut has_bit_idx = 0u8;
+            for (i, &(field, offset)) in field_offsets.iter().enumerate() {
+                let has_bit = if needs_has_bit(field) {
+                    let bit = has_bit_idx;
+                    has_bit_idx += 1;
+                    bit
+                } else {
+                    0
+                };
+
+                let entry_offset = if is_message(field) {
+                    // For message fields, offset points to aux entry
+                    let aux_index = aux_index_map[&field.number()];
+                    let aux_offset = (aux_ptr as usize) + aux_index * core::mem::size_of::<AuxTableEntry>();
+                    let table_addr = table_ptr as usize;
+                    (aux_offset - table_addr) as u16
+                } else {
+                    offset as u16
+                };
+
+                encode_ptr.add(i).write(encoding::TableEntry {
+                    has_bit,
+                    kind: field_kind_tokens(&field),
+                    offset: entry_offset,
+                    encoded_tag: calculate_tag(field),
+                });
+            }
+
+            // Build decode entries - sparse array indexed by field number
+            for field_number in 0..=max_field_number {
+                if let Some(field) = descriptor.field().iter().find(|f| f.number() == field_number) {
+                    let entry = if is_message(field) {
+                        // For message fields, offset points to aux entry
+                        let aux_index = aux_index_map[&field_number];
+                        let aux_offset = (aux_ptr as usize) + aux_index * core::mem::size_of::<AuxTableEntry>();
+                        let table_addr = table_ptr as usize;
+                        decoding::TableEntry::new(
+                            field_kind_tokens(&field),
+                            0, // has_bit not used for message fields
+                            aux_offset - table_addr,
+                        )
+                    } else {
+                        let offset = field_offsets
+                            .iter()
+                            .find(|(f, _)| f.number() == field_number)
+                            .map(|(_, o)| *o)
+                            .unwrap_or(0);
+                        let has_bit = if needs_has_bit(field) {
+                            // TODO: proper has_bit calculation
+                            field_number as u32
+                        } else {
+                            0
+                        };
+                        decoding::TableEntry::new(field_kind_tokens(&field), has_bit, offset as usize)
+                    };
+                    decode_ptr.add(field_number as usize).write(entry);
+                } else {
+                    // Empty entry for unused field number
+                    decode_ptr.add(field_number as usize).write(decoding::TableEntry(0));
+                }
+            }
+
+            // Build aux entries for message fields
+            for (aux_index, &(field, offset)) in field_offsets.iter()
+                .filter(|(f, _)| is_message(f))
+                .enumerate()
+            {
+                let child_type_name = field.type_name();
+                let child_table_ptr = self.tables.get(child_type_name)
+                    .map(|&t| t as *const Table)
+                    .unwrap_or(core::ptr::null());
+
+                aux_ptr.add(aux_index).write(AuxTableEntry {
+                    offset,
+                    child_table: child_table_ptr,
+                });
+            }
+
+            &*table_ptr
+        }
+    }
+
+    fn field_size(&self, field: &FieldDescriptorProto) -> u32 {
+        use Type::*;
+
+        if is_repeated(field) {
+            return core::mem::size_of::<crate::containers::RepeatedField<u8>>() as u32;
+        }
+
+        match field.r#type().unwrap() {
+            TYPE_BOOL => 1,
+            TYPE_INT32 | TYPE_UINT32 | TYPE_SINT32 | TYPE_FIXED32 | TYPE_SFIXED32
+            | TYPE_FLOAT | TYPE_ENUM => 4,
+            TYPE_INT64 | TYPE_UINT64 | TYPE_SINT64 | TYPE_FIXED64 | TYPE_SFIXED64
+            | TYPE_DOUBLE => 8,
+            TYPE_STRING | TYPE_BYTES => core::mem::size_of::<String>() as u32,
+            TYPE_MESSAGE | TYPE_GROUP => core::mem::size_of::<Message>() as u32,
+        }
+    }
+
+    fn decode_into(
+        &mut self,
+        object: &mut Object,
+        table: &Table,
+        bytes: &[u8],
+    ) -> anyhow::Result<()> {
+        use crate::decoding::ResumeableDecode;
+
+        let mut decoder = ResumeableDecode::<32>::new_from_table(object, table, isize::MAX);
+        if !decoder.resume(bytes, &mut self.arena) {
+            return Err(anyhow::anyhow!("Decode failed"));
+        }
+        if !decoder.finish(&mut self.arena) {
+            return Err(anyhow::anyhow!("Decode finish failed"));
+        }
+        Ok(())
     }
 }
-*/
 
 pub struct DynamicMessage<'pool, 'msg> {
     pub object: &'msg Object,

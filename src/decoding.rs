@@ -687,6 +687,23 @@ impl<'a, const STACK_DEPTH: usize> ResumeableDecode<'a, STACK_DEPTH> {
         }
     }
 
+    pub fn new_from_table(obj: &'a mut crate::base::Object, table: &'a crate::tables::Table, limit: isize) -> Self {
+        // SAFETY: We extend the lifetime to 'static because the decode table is only used
+        // for reading and doesn't actually need to outlive the decode operation.
+        // The table lives in an arena and will outlive this decoder.
+        let table: &'static crate::tables::Table = unsafe { core::mem::transmute(table) };
+        let object = DecodeObject::Message(obj, table);
+        Self {
+            state: MaybeUninit::new(ResumeableState {
+                limit,
+                object,
+                overrun: SLOP_SIZE as isize,
+            }),
+            patch_buffer: [0; SLOP_SIZE * 2],
+            stack: Default::default(),
+        }
+    }
+
     #[must_use]
     pub fn resume(&mut self, buf: &[u8], arena: &mut crate::arena::Arena) -> bool {
         self.resume_impl(buf, arena).is_some()
