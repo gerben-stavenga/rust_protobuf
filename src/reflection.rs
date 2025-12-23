@@ -223,16 +223,21 @@ impl<'alloc> DescriptorPool<'alloc> {
 
         let num_decode_entries = (max_field_number + 1) as usize;
 
-        // Calculate field offsets and total size
+        // Calculate field offsets and total size with proper alignment
         let mut offset = has_bits_size;
         let mut field_offsets = std::vec::Vec::new();
 
         for &field in descriptor.field() {
+            // Align offset to field's alignment requirement
+            let field_align = self.field_align(field);
+            offset = (offset + field_align - 1) & !(field_align - 1);
+
             field_offsets.push((field, offset));
             offset += self.field_size(field);
         }
 
-        let total_size = offset;
+        // Align final size to largest field alignment (typically 8 for Message/String)
+        let total_size = (offset + 7) & !7;
 
         // Count message fields for aux entries
         let num_aux_entries = descriptor.field().iter().filter(|f| is_message(f)).count();
@@ -369,6 +374,24 @@ impl<'alloc> DescriptorPool<'alloc> {
             | TYPE_DOUBLE => 8,
             TYPE_STRING | TYPE_BYTES => core::mem::size_of::<String>() as u32,
             TYPE_MESSAGE | TYPE_GROUP => core::mem::size_of::<Message>() as u32,
+        }
+    }
+
+    fn field_align(&self, field: &FieldDescriptorProto) -> u32 {
+        use Type::*;
+
+        if is_repeated(field) {
+            return core::mem::align_of::<crate::containers::RepeatedField<u8>>() as u32;
+        }
+
+        match field.r#type().unwrap() {
+            TYPE_BOOL => 1,
+            TYPE_INT32 | TYPE_UINT32 | TYPE_SINT32 | TYPE_FIXED32 | TYPE_SFIXED32
+            | TYPE_FLOAT | TYPE_ENUM => 4,
+            TYPE_INT64 | TYPE_UINT64 | TYPE_SINT64 | TYPE_FIXED64 | TYPE_SFIXED64
+            | TYPE_DOUBLE => 8,
+            TYPE_STRING | TYPE_BYTES => core::mem::align_of::<String>() as u32,
+            TYPE_MESSAGE | TYPE_GROUP => core::mem::align_of::<Message>() as u32,
         }
     }
 
