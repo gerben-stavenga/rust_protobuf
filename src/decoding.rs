@@ -687,7 +687,11 @@ impl<'a, const STACK_DEPTH: usize> ResumeableDecode<'a, STACK_DEPTH> {
         }
     }
 
-    pub fn new_from_table(obj: &'a mut crate::base::Object, table: &'a crate::tables::Table, limit: isize) -> Self {
+    pub fn new_from_table(
+        obj: &'a mut crate::base::Object,
+        table: &'a crate::tables::Table,
+        limit: isize,
+    ) -> Self {
         // SAFETY: We extend the lifetime to 'static because the decode table is only used
         // for reading and doesn't actually need to outlive the decode operation.
         // The table lives in an arena and will outlive this decoder.

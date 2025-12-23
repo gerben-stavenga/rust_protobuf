@@ -29,6 +29,7 @@ impl Table {
         }
     }
 
+    #[allow(clippy::self_named_constructors)]
     pub(crate) fn table(encode_entries: &[crate::encoding::TableEntry]) -> &Self {
         unsafe { &*(encode_entries.as_ptr_range().end as *const Table) }
     }

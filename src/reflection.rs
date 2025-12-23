@@ -1,9 +1,15 @@
 use crate::{
-    Protobuf, arena::Arena, base::{Message, Object}, containers::{Bytes, String}, google::protobuf::{
+    Protobuf,
+    arena::Arena,
+    base::{Message, Object},
+    containers::{Bytes, String},
+    google::protobuf::{
         DescriptorProto::ProtoType as DescriptorProto,
         FieldDescriptorProto::{Label, ProtoType as FieldDescriptorProto, Type},
         FileDescriptorProto::ProtoType as FileDescriptorProto,
-    }, tables::Table, wire
+    },
+    tables::Table,
+    wire,
 };
 
 pub fn field_kind_tokens(field: &&FieldDescriptorProto) -> wire::FieldKind {
@@ -163,20 +169,29 @@ impl<'alloc> DescriptorPool<'alloc> {
         unsafe {
             // Recalculate aux offset using Layout::extend (accounts for padding)
             let table_layout = std::alloc::Layout::new::<Table>();
-            let (_, aux_offset_from_table) = table_layout.extend(
-                std::alloc::Layout::array::<crate::decoding::TableEntry>(table.num_decode_entries as usize).unwrap()
-            ).unwrap().0.extend(
-                std::alloc::Layout::array::<AuxTableEntry>(num_aux_entries).unwrap()
-            ).unwrap();
+            let (_, aux_offset_from_table) = table_layout
+                .extend(
+                    std::alloc::Layout::array::<crate::decoding::TableEntry>(
+                        table.num_decode_entries as usize,
+                    )
+                    .unwrap(),
+                )
+                .unwrap()
+                .0
+                .extend(std::alloc::Layout::array::<AuxTableEntry>(num_aux_entries).unwrap())
+                .unwrap();
 
-            let aux_ptr = (table as *const Table as *const u8).add(aux_offset_from_table) as *mut AuxTableEntry;
+            let aux_ptr = (table as *const Table as *const u8).add(aux_offset_from_table)
+                as *mut AuxTableEntry;
 
             // Patch each aux entry with the correct child table pointer
             let mut aux_idx = 0;
             for field in descriptor.field() {
                 if is_message(field) {
                     let child_type_name = Self::normalize_type_name(field.type_name());
-                    let child_table_ptr = self.tables.get(child_type_name)
+                    let child_table_ptr = self
+                        .tables
+                        .get(child_type_name)
                         .map(|&t| t as *const Table)
                         .unwrap_or(core::ptr::null());
 
@@ -222,7 +237,10 @@ impl<'alloc> DescriptorPool<'alloc> {
         Ok(DynamicMessage { object, table })
     }
 
-    fn build_table_from_descriptor(&mut self, descriptor: &'alloc DescriptorProto) -> &'alloc Table {
+    fn build_table_from_descriptor(
+        &mut self,
+        descriptor: &'alloc DescriptorProto,
+    ) -> &'alloc Table {
         use crate::{decoding, encoding, tables::AuxTableEntry};
 
         // Calculate sizes
@@ -232,7 +250,7 @@ impl<'alloc> DescriptorPool<'alloc> {
             .iter()
             .filter(|f| needs_has_bit(f))
             .count();
-        let has_bits_size = ((num_has_bits + 31) / 32 * 4) as u32;
+        let has_bits_size = (num_has_bits.div_ceil(32) * 4) as u32;
 
         // Calculate max field number for sparse decode table
         let max_field_number = descriptor
@@ -269,15 +287,17 @@ impl<'alloc> DescriptorPool<'alloc> {
 
         // Allocate table with entries - use Layout::extend to handle padding correctly
         let encode_layout = std::alloc::Layout::array::<encoding::TableEntry>(num_fields).unwrap();
-        let (layout, table_offset) = encode_layout.extend(std::alloc::Layout::new::<Table>()).unwrap();
-        let (layout, decode_offset) = layout.extend(
-            std::alloc::Layout::array::<decoding::TableEntry>(num_decode_entries).unwrap()
-        ).unwrap();
-        let (layout, aux_offset) = layout.extend(
-            std::alloc::Layout::array::<AuxTableEntry>(num_aux_entries).unwrap()
-        ).unwrap();
+        let (layout, table_offset) = encode_layout
+            .extend(std::alloc::Layout::new::<Table>())
+            .unwrap();
+        let (layout, decode_offset) = layout
+            .extend(std::alloc::Layout::array::<decoding::TableEntry>(num_decode_entries).unwrap())
+            .unwrap();
+        let (layout, aux_offset) = layout
+            .extend(std::alloc::Layout::array::<AuxTableEntry>(num_aux_entries).unwrap())
+            .unwrap();
 
-        let base_ptr = self.arena.alloc_raw(layout).as_ptr() as *mut u8;
+        let base_ptr = self.arena.alloc_raw(layout).as_ptr();
         let encode_ptr = base_ptr as *mut encoding::TableEntry;
         let table_ptr = unsafe { base_ptr.add(table_offset) as *mut Table };
         let decode_ptr = unsafe { base_ptr.add(decode_offset) as *mut decoding::TableEntry };
@@ -289,7 +309,10 @@ impl<'alloc> DescriptorPool<'alloc> {
             (*table_ptr).num_decode_entries = num_decode_entries as u16;
             (*table_ptr).size = total_size as u16;
             // SAFETY: descriptor lives in arena with 'alloc lifetime, which outlives the table usage
-            (*table_ptr).descriptor = core::mem::transmute::<&'alloc DescriptorProto, &'static DescriptorProto>(descriptor);
+            (*table_ptr).descriptor = core::mem::transmute::<
+                &'alloc DescriptorProto,
+                &'static DescriptorProto,
+            >(descriptor);
 
             // Build aux index map for message fields and has_bit index map
             let mut aux_index_map = std::collections::HashMap::<i32, usize>::new();
@@ -321,7 +344,8 @@ impl<'alloc> DescriptorPool<'alloc> {
                 let entry_offset = if is_message(field) {
                     // For message fields, offset points to aux entry
                     let aux_index = aux_index_map[&field.number()];
-                    let aux_offset = (aux_ptr as usize) + aux_index * core::mem::size_of::<AuxTableEntry>();
+                    let aux_offset =
+                        (aux_ptr as usize) + aux_index * core::mem::size_of::<AuxTableEntry>();
                     let table_addr = table_ptr as usize;
                     (aux_offset - table_addr) as u16
                 } else {
@@ -338,14 +362,19 @@ impl<'alloc> DescriptorPool<'alloc> {
 
             // Build decode entries - sparse array indexed by field number
             for field_number in 0..=max_field_number {
-                if let Some(field) = descriptor.field().iter().find(|f| f.number() == field_number) {
+                if let Some(field) = descriptor
+                    .field()
+                    .iter()
+                    .find(|f| f.number() == field_number)
+                {
                     let entry = if is_message(field) {
                         // For message fields, offset points to aux entry
                         let aux_index = aux_index_map[&field_number];
-                        let aux_offset = (aux_ptr as usize) + aux_index * core::mem::size_of::<AuxTableEntry>();
+                        let aux_offset =
+                            (aux_ptr as usize) + aux_index * core::mem::size_of::<AuxTableEntry>();
                         let table_addr = table_ptr as usize;
                         decoding::TableEntry::new(
-                            field_kind_tokens(&field),
+                            field_kind_tokens(field),
                             0, // has_bit not used for message fields
                             aux_offset - table_addr,
                         )
@@ -360,22 +389,31 @@ impl<'alloc> DescriptorPool<'alloc> {
                         } else {
                             0
                         };
-                        decoding::TableEntry::new(field_kind_tokens(&field), has_bit, offset as usize)
+                        decoding::TableEntry::new(
+                            field_kind_tokens(field),
+                            has_bit,
+                            offset as usize,
+                        )
                     };
                     decode_ptr.add(field_number as usize).write(entry);
                 } else {
                     // Empty entry for unused field number
-                    decode_ptr.add(field_number as usize).write(decoding::TableEntry(0));
+                    decode_ptr
+                        .add(field_number as usize)
+                        .write(decoding::TableEntry(0));
                 }
             }
 
             // Build aux entries for message fields
-            for (aux_index, &(field, offset)) in field_offsets.iter()
+            for (aux_index, &(field, offset)) in field_offsets
+                .iter()
                 .filter(|(f, _)| is_message(f))
                 .enumerate()
             {
                 let child_type_name = Self::normalize_type_name(field.type_name());
-                let child_table_ptr = self.tables.get(child_type_name)
+                let child_table_ptr = self
+                    .tables
+                    .get(child_type_name)
                     .map(|&t| t as *const Table)
                     .unwrap_or(core::ptr::null());
 
@@ -398,10 +436,11 @@ impl<'alloc> DescriptorPool<'alloc> {
 
         match field.r#type().unwrap() {
             TYPE_BOOL => 1,
-            TYPE_INT32 | TYPE_UINT32 | TYPE_SINT32 | TYPE_FIXED32 | TYPE_SFIXED32
-            | TYPE_FLOAT | TYPE_ENUM => 4,
-            TYPE_INT64 | TYPE_UINT64 | TYPE_SINT64 | TYPE_FIXED64 | TYPE_SFIXED64
-            | TYPE_DOUBLE => 8,
+            TYPE_INT32 | TYPE_UINT32 | TYPE_SINT32 | TYPE_FIXED32 | TYPE_SFIXED32 | TYPE_FLOAT
+            | TYPE_ENUM => 4,
+            TYPE_INT64 | TYPE_UINT64 | TYPE_SINT64 | TYPE_FIXED64 | TYPE_SFIXED64 | TYPE_DOUBLE => {
+                8
+            }
             TYPE_STRING | TYPE_BYTES => core::mem::size_of::<String>() as u32,
             TYPE_MESSAGE | TYPE_GROUP => core::mem::size_of::<Message>() as u32,
         }
@@ -416,10 +455,11 @@ impl<'alloc> DescriptorPool<'alloc> {
 
         match field.r#type().unwrap() {
             TYPE_BOOL => 1,
-            TYPE_INT32 | TYPE_UINT32 | TYPE_SINT32 | TYPE_FIXED32 | TYPE_SFIXED32
-            | TYPE_FLOAT | TYPE_ENUM => 4,
-            TYPE_INT64 | TYPE_UINT64 | TYPE_SINT64 | TYPE_FIXED64 | TYPE_SFIXED64
-            | TYPE_DOUBLE => 8,
+            TYPE_INT32 | TYPE_UINT32 | TYPE_SINT32 | TYPE_FIXED32 | TYPE_SFIXED32 | TYPE_FLOAT
+            | TYPE_ENUM => 4,
+            TYPE_INT64 | TYPE_UINT64 | TYPE_SINT64 | TYPE_FIXED64 | TYPE_SFIXED64 | TYPE_DOUBLE => {
+                8
+            }
             TYPE_STRING | TYPE_BYTES => core::mem::align_of::<String>() as u32,
             TYPE_MESSAGE | TYPE_GROUP => core::mem::align_of::<Message>() as u32,
         }

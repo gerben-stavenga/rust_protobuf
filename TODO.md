@@ -21,10 +21,10 @@
   - Should use proper scope/package resolution from descriptor
   - Currently has manual mapping for ExtensionRange, ReservedRange, etc.
 
-- [ ] **Remove dead code in codegen**
-  - Clean up or remove 31 unused functions in codegen crate
-  - Functions like `generate_file_set`, `generate_message`, etc. appear unused
-  - Consider if these are planned features or should be removed
+- [ ] **Suppress false dead_code warnings in codegen**
+  - Add `#![allow(dead_code)]` to codegen modules
+  - Functions like `generate_file_set`, `generate_message`, etc. ARE used but Rust's analysis misses them
+  - These are internal implementation details called through the public `generate()` API
 
 ### Performance
 - [ ] **Optimize write_tag** (`src/wire.rs:241`)

@@ -151,7 +151,7 @@ where
     let fields = table.descriptor.field();
     let field_names: Vec<&str> = fields.iter().map(|f| f.name()).collect();
     let field_names_slice = field_names.as_slice();
-    let field_names_static = unsafe { std::mem::transmute(field_names_slice) };
+    let field_names_static = unsafe { std::mem::transmute::<&[&'static str], &'static [&'static str]>(field_names_slice) };
     deserializer.deserialize_struct(table.descriptor.name(), field_names_static, visitor)
 }
 

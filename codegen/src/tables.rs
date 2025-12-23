@@ -1,5 +1,3 @@
-use core::num;
-
 use super::protocrap;
 use crate::names::{rust_type_tokens, sanitize_field_name};
 use anyhow::Result;
@@ -150,7 +148,7 @@ fn generate_decoding_table(
     Ok(entries)
 }
 
-pub fn generate_table(
+pub(crate) fn generate_table(
     message: &DescriptorProto,
     has_bit_map: &std::collections::HashMap<i32, usize>,
 ) -> Result<TokenStream> {

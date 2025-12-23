@@ -17,7 +17,8 @@ use protocrap::reflection::is_repeated;
 use protocrap::reflection::needs_has_bit;
 use quote::{format_ident, quote};
 
-pub fn generate_file_set(file_set: &FileDescriptorSet) -> Result<TokenStream> {
+#[allow(dead_code)]
+pub(crate) fn generate_file_set(file_set: &FileDescriptorSet) -> Result<TokenStream> {
     let mut items = Vec::new();
 
     for file in file_set.file() {
@@ -52,7 +53,8 @@ fn generate_file(file: &FileDescriptorProto) -> Result<TokenStream> {
         let mut pool = protocrap::reflection::DescriptorPool::new(&std::alloc::Global);
         pool.add_file(file);
         let serialized = file.encode_vec::<100>()?;
-        let dyn_file_descriptor = pool.decode_message("google.protobuf.FileDescriptorProto", &serialized)?;
+        let dyn_file_descriptor =
+            pool.decode_message("google.protobuf.FileDescriptorProto", &serialized)?;
         crate::static_gen::generate_static_dynamic(&dyn_file_descriptor)?
     } else {
         let dynamic_file = protocrap::reflection::DynamicMessage::new(file);

@@ -5,7 +5,7 @@ use anyhow::Result;
 use proc_macro2::{Literal, TokenStream};
 use protocrap::{
     google::protobuf::FieldDescriptorProto::{ProtoType as FieldDescriptorProto, Type},
-    reflection::{DynamicMessage, Value, is_message, is_repeated, needs_has_bit},
+    reflection::{DynamicMessage, Value, is_repeated, needs_has_bit},
 };
 use quote::{ToTokens, format_ident, quote};
 
@@ -37,7 +37,7 @@ fn full_name(name: &str) -> Vec<proc_macro2::Ident> {
 }
 
 /// Generate static initializer for any proto message using runtime reflection
-pub fn generate_static_dynamic(value: &DynamicMessage) -> Result<TokenStream> {
+pub(crate) fn generate_static_dynamic(value: &DynamicMessage) -> Result<TokenStream> {
     // Calculate has_bits
     let has_bits = calculate_has_bits(&value);
     let has_bits_tokens = generate_has_bits_array(&has_bits);
