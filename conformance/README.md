@@ -13,12 +13,12 @@ cargo build -p protocrap-conformance
 
 Run all conformance tests:
 ```bash
-./bazelisk run @protobuf//conformance:conformance_test_runner -- --enforce_recommended ../target/debug/conformance-protocrap
+bazelisk run @protobuf//conformance:conformance_test_runner -- --enforce_recommended ../target/debug/conformance-protocrap
 ```
 
 Run with specific test suite:
 ```bash
-./conformance_test_runner --failure_list failure_list.txt ../target/debug/conformance-protocrap
+bazelisk run @protobuf//conformance:conformance_test_runner -- --failure_list failure_list.txt ../target/debug/conformance-protocrap
 ```
 
 ## Protocol

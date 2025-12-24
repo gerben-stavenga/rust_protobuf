@@ -12,6 +12,7 @@ anyhow = "1.0.100"
 base64 = "0.22.1"
 futures = "0.3.31"
 serde = { version = "1.0.228", optional = true}
+time = { version = "0.3", features = ["formatting", "parsing", "macros"] }
 
 [features]
 default = ["std", "serde_support"]

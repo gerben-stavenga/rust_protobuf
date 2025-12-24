@@ -8,7 +8,7 @@ use protocrap_conformance::protobuf_test_messages::proto2::TestAllTypesProto2;
 use protocrap_conformance::protobuf_test_messages::proto3::TestAllTypesProto3;
 use std::io::{self, Read, Write};
 
-const TEST_JSON: bool = false;
+const TEST_JSON: bool = true;
 
 fn roundtrip_proto<T: protocrap::ProtobufExt>(
     arena: &mut protocrap::arena::Arena,

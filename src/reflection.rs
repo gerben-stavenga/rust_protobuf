@@ -92,6 +92,23 @@ pub fn needs_has_bit(field: &FieldDescriptorProto) -> bool {
     !is_repeated(field) && !is_message(field)
 }
 
+pub fn default_value<'a>(field: &'a FieldDescriptorProto) -> Option<Value<'a, 'a>> {
+    use Type::*;
+
+    match field.r#type()? {
+        TYPE_BOOL => Some(Value::Bool(false)),
+        TYPE_INT32 | TYPE_UINT32 | TYPE_ENUM => Some(Value::Int32(0)),
+        TYPE_INT64 | TYPE_UINT64 => Some(Value::Int64(0)),
+        TYPE_SINT32 => Some(Value::Int32(0)),
+        TYPE_SINT64 => Some(Value::Int64(0)),
+        TYPE_FIXED32 | TYPE_SFIXED32 | TYPE_FLOAT => Some(Value::Int32(0)),
+        TYPE_FIXED64 | TYPE_SFIXED64 | TYPE_DOUBLE => Some(Value::Int64(0)),
+        TYPE_STRING => Some(Value::String(&"")),
+        TYPE_BYTES => Some(Value::Bytes(&[])),
+        TYPE_MESSAGE | TYPE_GROUP => None,
+    }
+}
+
 pub fn debug_message<T: Protobuf>(msg: &T, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
     let dynamic_msg = crate::reflection::DynamicMessage::new(msg);
     use core::fmt::Debug;
@@ -534,6 +551,15 @@ impl<'pool, 'msg> DynamicMessage<'pool, 'msg> {
             .field()
             .iter()
             .find(|&&field| field.name() == field_name)
+            .copied()
+    }
+
+    pub fn find_field_descriptor_by_number(&self, field_number: i32) -> Option<&'pool FieldDescriptorProto> {
+        self.table
+            .descriptor
+            .field()
+            .iter()
+            .find(|&&field| field.number() == field_number)
             .copied()
     }
 

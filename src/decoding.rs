@@ -707,7 +707,7 @@ fn decode_loop<'a>(
                                 let len = cursor.read_size()?;
 
                                 // Fast path: entire packed field fits in buffer
-                                if cursor - limited_end + len <= SLOP_SIZE as isize {
+                                if cursor - limited_end + len <= 0 {
                                     let field =
                                         ctx.obj.ref_mut::<RepeatedField<bool>>(entry.offset());
                                     let end = (cursor + len).0;
@@ -773,7 +773,7 @@ fn decode_loop<'a>(
                                 let len = cursor.read_size()?;
 
                                 // Fast path: entire packed field fits in buffer
-                                if cursor - limited_end + len <= SLOP_SIZE as isize {
+                                if cursor - limited_end + len <= 0 {
                                     let field =
                                         ctx.obj.ref_mut::<RepeatedField<u32>>(entry.offset());
                                     let end = (cursor + len).0;
