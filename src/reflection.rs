@@ -30,7 +30,7 @@ pub fn field_kind_tokens(field: &&FieldDescriptorProto) -> wire::FieldKind {
             Type::TYPE_STRING | Type::TYPE_BYTES => wire::FieldKind::RepeatedBytes,
             Type::TYPE_MESSAGE => wire::FieldKind::RepeatedMessage,
             Type::TYPE_GROUP => wire::FieldKind::RepeatedGroup,
-            Type::TYPE_ENUM => wire::FieldKind::RepeatedVarint32,
+            Type::TYPE_ENUM => wire::FieldKind::RepeatedInt32,
         }
     } else {
         match field.r#type().unwrap() {
@@ -47,7 +47,7 @@ pub fn field_kind_tokens(field: &&FieldDescriptorProto) -> wire::FieldKind {
             Type::TYPE_STRING | Type::TYPE_BYTES => wire::FieldKind::Bytes,
             Type::TYPE_MESSAGE => wire::FieldKind::Message,
             Type::TYPE_GROUP => wire::FieldKind::Group,
-            Type::TYPE_ENUM => wire::FieldKind::Varint32,
+            Type::TYPE_ENUM => wire::FieldKind::Int32,
         }
     }
 }
