@@ -1,8 +1,0 @@
-// Wrapper proto to bundle all conformance test protos together
-// This allows protoc to deduplicate imports
-
-syntax = "proto3";
-
-import "conformance.proto";
-import "test_messages_proto2.proto";
-import "test_messages_proto3.proto";

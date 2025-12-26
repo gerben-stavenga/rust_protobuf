@@ -1,0 +1,10 @@
+# Descriptor set for google/protobuf/descriptor.proto
+# Used to bootstrap protocrap's own descriptor.pc.rs
+genrule(
+    name = "descriptor_set",
+    srcs = ["@protobuf//:descriptor_proto_srcs"],
+    outs = ["descriptor.bin"],
+    cmd = "$(location @protobuf//:protoc) --include_imports --descriptor_set_out=$@ $(SRCS)",
+    tools = ["@protobuf//:protoc"],
+    visibility = ["//visibility:public"],
+)

@@ -20886,7 +20886,9 @@ pub mod google {
             pub static FILE_DESCRIPTOR_PROTO: protocrap::google::protobuf::FileDescriptorProto::ProtoType = {
                 protocrap::google::protobuf::FileDescriptorProto::ProtoType::from_static(
                     [3],
-                    protocrap::containers::String::from_static("proto/descriptor.proto"),
+                    protocrap::containers::String::from_static(
+                        "external/protobuf~/src/google/protobuf/descriptor.proto",
+                    ),
                     protocrap::containers::String::from_static("google.protobuf"),
                     protocrap::containers::RepeatedField::new(),
                     {
@@ -20938,28 +20940,7 @@ pub mod google {
                                                                 static PROTO_TYPE: protocrap::google::protobuf::ExtensionRangeOptions::ProtoType = {
                                                                     protocrap::google::protobuf::ExtensionRangeOptions::ProtoType::from_static(
                                                                         [0],
-                                                                        {
-                                                                            static ELEMENTS: [protocrap::base::Message; 1usize] = [
-                                                                                {
-                                                                                    static PROTO_TYPE: protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType = {
-                                                                                        protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType::from_static(
-                                                                                            [7],
-                                                                                            536000000,
-                                                                                            protocrap::containers::String::from_static(
-                                                                                                ".buf.descriptor.v1.buf_file_descriptor_set_extension",
-                                                                                            ),
-                                                                                            protocrap::containers::String::from_static(
-                                                                                                ".buf.descriptor.v1.FileDescriptorSetExtension",
-                                                                                            ),
-                                                                                            false,
-                                                                                            false,
-                                                                                        )
-                                                                                    };
-                                                                                    protocrap::base::Message::new(&PROTO_TYPE)
-                                                                                },
-                                                                            ];
-                                                                            protocrap::containers::RepeatedField::from_static(&ELEMENTS)
-                                                                        },
+                                                                        protocrap::containers::RepeatedField::new(),
                                                                         0i32,
                                                                         protocrap::base::Message(core::ptr::null_mut()),
                                                                         protocrap::containers::RepeatedField::new(),
@@ -26506,7 +26487,9 @@ pub mod google {
                                                                         false,
                                                                         2,
                                                                         {
-                                                                            static ELEMENTS: [i32; 1usize] = [9i32];
+                                                                            static ELEMENTS: [i32; 9usize] = [
+                                                                                1i32, 2i32, 3i32, 4i32, 5i32, 6i32, 7i32, 8i32, 9i32,
+                                                                            ];
                                                                             protocrap::containers::RepeatedField::from_static(&ELEMENTS)
                                                                         },
                                                                         {
@@ -27202,120 +27185,7 @@ pub mod google {
                                                                 static PROTO_TYPE: protocrap::google::protobuf::ExtensionRangeOptions::ProtoType = {
                                                                     protocrap::google::protobuf::ExtensionRangeOptions::ProtoType::from_static(
                                                                         [0],
-                                                                        {
-                                                                            static ELEMENTS: [protocrap::base::Message; 7usize] = [
-                                                                                {
-                                                                                    static PROTO_TYPE: protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType = {
-                                                                                        protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType::from_static(
-                                                                                            [7],
-                                                                                            1000,
-                                                                                            protocrap::containers::String::from_static(".pb.cpp"),
-                                                                                            protocrap::containers::String::from_static(
-                                                                                                ".pb.CppFeatures",
-                                                                                            ),
-                                                                                            false,
-                                                                                            false,
-                                                                                        )
-                                                                                    };
-                                                                                    protocrap::base::Message::new(&PROTO_TYPE)
-                                                                                },
-                                                                                {
-                                                                                    static PROTO_TYPE: protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType = {
-                                                                                        protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType::from_static(
-                                                                                            [7],
-                                                                                            1001,
-                                                                                            protocrap::containers::String::from_static(".pb.java"),
-                                                                                            protocrap::containers::String::from_static(
-                                                                                                ".pb.JavaFeatures",
-                                                                                            ),
-                                                                                            false,
-                                                                                            false,
-                                                                                        )
-                                                                                    };
-                                                                                    protocrap::base::Message::new(&PROTO_TYPE)
-                                                                                },
-                                                                                {
-                                                                                    static PROTO_TYPE: protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType = {
-                                                                                        protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType::from_static(
-                                                                                            [7],
-                                                                                            1002,
-                                                                                            protocrap::containers::String::from_static(".pb.go"),
-                                                                                            protocrap::containers::String::from_static(
-                                                                                                ".pb.GoFeatures",
-                                                                                            ),
-                                                                                            false,
-                                                                                            false,
-                                                                                        )
-                                                                                    };
-                                                                                    protocrap::base::Message::new(&PROTO_TYPE)
-                                                                                },
-                                                                                {
-                                                                                    static PROTO_TYPE: protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType = {
-                                                                                        protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType::from_static(
-                                                                                            [7],
-                                                                                            1003,
-                                                                                            protocrap::containers::String::from_static(".pb.python"),
-                                                                                            protocrap::containers::String::from_static(
-                                                                                                ".pb.PythonFeatures",
-                                                                                            ),
-                                                                                            false,
-                                                                                            false,
-                                                                                        )
-                                                                                    };
-                                                                                    protocrap::base::Message::new(&PROTO_TYPE)
-                                                                                },
-                                                                                {
-                                                                                    static PROTO_TYPE: protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType = {
-                                                                                        protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType::from_static(
-                                                                                            [7],
-                                                                                            1100,
-                                                                                            protocrap::containers::String::from_static(
-                                                                                                ".imp.impress_feature_set",
-                                                                                            ),
-                                                                                            protocrap::containers::String::from_static(
-                                                                                                ".imp.ImpressFeatureSet",
-                                                                                            ),
-                                                                                            false,
-                                                                                            false,
-                                                                                        )
-                                                                                    };
-                                                                                    protocrap::base::Message::new(&PROTO_TYPE)
-                                                                                },
-                                                                                {
-                                                                                    static PROTO_TYPE: protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType = {
-                                                                                        protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType::from_static(
-                                                                                            [7],
-                                                                                            9989,
-                                                                                            protocrap::containers::String::from_static(
-                                                                                                ".pb.java_mutable",
-                                                                                            ),
-                                                                                            protocrap::containers::String::from_static(
-                                                                                                ".pb.JavaMutableFeatures",
-                                                                                            ),
-                                                                                            false,
-                                                                                            false,
-                                                                                        )
-                                                                                    };
-                                                                                    protocrap::base::Message::new(&PROTO_TYPE)
-                                                                                },
-                                                                                {
-                                                                                    static PROTO_TYPE: protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType = {
-                                                                                        protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType::from_static(
-                                                                                            [7],
-                                                                                            9990,
-                                                                                            protocrap::containers::String::from_static(".pb.proto1"),
-                                                                                            protocrap::containers::String::from_static(
-                                                                                                ".pb.Proto1Features",
-                                                                                            ),
-                                                                                            false,
-                                                                                            false,
-                                                                                        )
-                                                                                    };
-                                                                                    protocrap::base::Message::new(&PROTO_TYPE)
-                                                                                },
-                                                                            ];
-                                                                            protocrap::containers::RepeatedField::from_static(&ELEMENTS)
-                                                                        },
+                                                                        protocrap::containers::RepeatedField::new(),
                                                                         0i32,
                                                                         protocrap::base::Message(core::ptr::null_mut()),
                                                                         protocrap::containers::RepeatedField::new(),
@@ -27822,28 +27692,7 @@ pub mod google {
                                                                 static PROTO_TYPE: protocrap::google::protobuf::ExtensionRangeOptions::ProtoType = {
                                                                     protocrap::google::protobuf::ExtensionRangeOptions::ProtoType::from_static(
                                                                         [0],
-                                                                        {
-                                                                            static ELEMENTS: [protocrap::base::Message; 1usize] = [
-                                                                                {
-                                                                                    static PROTO_TYPE: protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType = {
-                                                                                        protocrap::google::protobuf::ExtensionRangeOptions::Declaration::ProtoType::from_static(
-                                                                                            [7],
-                                                                                            536000000,
-                                                                                            protocrap::containers::String::from_static(
-                                                                                                ".buf.descriptor.v1.buf_source_code_info_extension",
-                                                                                            ),
-                                                                                            protocrap::containers::String::from_static(
-                                                                                                ".buf.descriptor.v1.SourceCodeInfoExtension",
-                                                                                            ),
-                                                                                            false,
-                                                                                            false,
-                                                                                        )
-                                                                                    };
-                                                                                    protocrap::base::Message::new(&PROTO_TYPE)
-                                                                                },
-                                                                            ];
-                                                                            protocrap::containers::RepeatedField::from_static(&ELEMENTS)
-                                                                        },
+                                                                        protocrap::containers::RepeatedField::new(),
                                                                         0i32,
                                                                         protocrap::base::Message(core::ptr::null_mut()),
                                                                         protocrap::containers::RepeatedField::new(),

@@ -5,3 +5,16 @@ alias(
     actual = "@protobuf//conformance:conformance_test_runner",
     visibility = ["//visibility:public"],
 )
+
+load("//bazel:proto_descriptor_set.bzl", "proto_descriptor_set")
+
+# Merged descriptor set using protos from @protobuf
+proto_descriptor_set(
+    name = "conformance_descriptor_set",
+    deps = [
+        "@protobuf//conformance:conformance_proto",
+        "@protobuf//conformance/test_protos:test_messages_proto2_proto",
+        "@protobuf//conformance/test_protos:test_messages_proto3_proto",
+    ],
+    visibility = ["//visibility:public"],
+)

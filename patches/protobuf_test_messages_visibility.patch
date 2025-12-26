@@ -1,0 +1,19 @@
+diff --git a/src/google/protobuf/BUILD.bazel b/src/google/protobuf/BUILD.bazel
+--- a/src/google/protobuf/BUILD.bazel
++++ b/src/google/protobuf/BUILD.bazel
+@@ -1974,6 +1974,7 @@ proto_library(
+     visibility = [
+         "//:__pkg__",
+         "//conformance:__pkg__",
++        "//conformance/test_protos:__pkg__",
+         "//lua:__subpackages__",
+         "//python:__subpackages__",
+         "//upb:__subpackages__",
+@@ -1991,6 +1992,7 @@ proto_library(
+     visibility = [
+         "//:__pkg__",
+         "//conformance:__pkg__",
++        "//conformance/test_protos:__pkg__",
+         "//lua:__subpackages__",
+         "//python:__subpackages__",
+         "//upb:__subpackages__",

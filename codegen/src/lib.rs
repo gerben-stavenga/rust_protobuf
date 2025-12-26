@@ -73,7 +73,85 @@ pub fn generate_proto(out_dir: &str, proto_file: &str, output_name: &str) -> Res
     // Write output
     std::fs::write(&output_file, code)?;
 
-    println!("cargo:warning=✅ Generated {}", output_file);
+    println!("cargo:warning=Generated {}", output_file);
+
+    Ok(())
+}
+
+/// Returns path to checked-in bazelisk binary for current platform
+pub fn get_bazelisk_path(workspace_root: &Path) -> std::path::PathBuf {
+    let os = if cfg!(target_os = "linux") {
+        "linux"
+    } else if cfg!(target_os = "macos") {
+        "darwin"
+    } else if cfg!(target_os = "windows") {
+        "windows"
+    } else {
+        panic!("Unsupported OS for bazelisk")
+    };
+
+    let arch = if cfg!(target_arch = "x86_64") {
+        "amd64"
+    } else if cfg!(target_arch = "aarch64") {
+        "arm64"
+    } else {
+        panic!("Unsupported arch for bazelisk")
+    };
+
+    let ext = if cfg!(target_os = "windows") {
+        ".exe"
+    } else {
+        ""
+    };
+
+    workspace_root.join(format!("tools/bazelisk-{}-{}{}", os, arch, ext))
+}
+
+/// Build a Bazel target and return path to output file in bazel-bin
+pub fn build_bazel_target(target: &str, workspace_root: &Path) -> Result<std::path::PathBuf> {
+    let bazelisk = get_bazelisk_path(workspace_root);
+
+    let output = std::process::Command::new(&bazelisk)
+        .current_dir(workspace_root)
+        .args(["build", target])
+        .output()?;
+
+    if !output.status.success() {
+        return Err(anyhow::anyhow!(
+            "Bazel build failed for {}: {}",
+            target,
+            String::from_utf8_lossy(&output.stderr)
+        ));
+    }
+
+    // Parse target to get output path: //:foo -> bazel-bin/foo
+    let output_name = target
+        .trim_start_matches("//")
+        .trim_start_matches(':')
+        .replace(':', "/");
+
+    Ok(workspace_root.join("bazel-bin").join(output_name))
+}
+
+/// Generate Rust code from a Bazel descriptor set target
+pub fn generate_from_bazel_target(
+    target: &str,
+    output_file: &Path,
+    workspace_root: &Path,
+) -> Result<()> {
+    // Build the descriptor set
+    let desc_path = build_bazel_target(target, workspace_root)?;
+
+    // Read descriptor bytes
+    let descriptor_bytes = std::fs::read(&desc_path)?;
+
+    // Generate Rust code
+    let code = generate(&descriptor_bytes)?;
+
+    // Write output
+    std::fs::write(output_file, code)?;
+
+    println!("cargo:warning=Generated {} from {}", output_file.display(), target);
 
     Ok(())
 }

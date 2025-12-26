@@ -672,6 +672,7 @@ dependencies = [
  "anyhow",
  "byteorder",
  "protocrap 0.1.15",
+ "protocrap-codegen",
  "serde",
  "serde_json",
 ]
