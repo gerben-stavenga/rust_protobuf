@@ -1,208 +1,320 @@
-Required.Proto2.JsonInput.DoubleFieldMaxNegativeValue.JsonOutput # Output was not equivalent to reference message: modified: optional_double: -2.22507e-308 -> -2.2250700000000003e-308
-Required.Proto2.JsonInput.DoubleFieldMaxNegativeValue.ProtobufOutput # Output was not equivalent to reference message: modified: optional_double: -2.22507e-308 -> -2.2250700000000003e-308
-Required.Proto2.JsonInput.DoubleFieldMinPositiveValue.JsonOutput # Output was not equivalent to reference message: modified: optional_double: 2.22507e-308 -> 2.2250700000000003e-308
-Required.Proto2.JsonInput.DoubleFieldMinPositiveValue.ProtobufOutput # Output was not equivalent to reference message: modified: optional_double: 2.22507e-308 -> 2.2250700000000003e-308
-Required.Proto2.JsonInput.EnumField.JsonOutput # Failed to parse input or produce output.
-Required.Proto2.JsonInput.EnumField.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto2.JsonInput.EnumRepeatedField.JsonOutput # Failed to parse input or produce output.
-Required.Proto2.JsonInput.EnumRepeatedField.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto2.JsonInput.FloatFieldTooLarge # Should have failed to parse, but didn't.
-Required.Proto2.JsonInput.FloatFieldTooSmall # Should have failed to parse, but didn't.
-Required.Proto2.JsonInput.IgnoreUnknownJsonFalse.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto2.JsonInput.IgnoreUnknownJsonNull.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto2.JsonInput.IgnoreUnknownJsonNumber.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto2.JsonInput.IgnoreUnknownJsonObject.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto2.JsonInput.IgnoreUnknownJsonString.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto2.JsonInput.IgnoreUnknownJsonTrue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto2.JsonInput.Int32FieldNotInteger # Should have failed to parse, but didn't.
-Required.Proto2.JsonInput.Int32FieldQuotedExponentialValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto2.JsonInput.Int32FieldQuotedExponentialValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto2.JsonInput.Int32FieldTooLarge # Should have failed to parse, but didn't.
-Required.Proto2.JsonInput.Int32FieldTooSmall # Should have failed to parse, but didn't.
-Required.Proto2.JsonInput.OneofFieldDuplicate # Should have failed to parse, but didn't.
-Required.Proto2.JsonInput.OriginalProtoFieldName.JsonOutput # Failed to parse input or produce output.
-Required.Proto2.JsonInput.OriginalProtoFieldName.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto2.JsonInput.Uint32FieldNotInteger # Should have failed to parse, but didn't.
-Required.Proto2.JsonInput.Uint32FieldTooLarge # Should have failed to parse, but didn't.
-Required.Proto2.ProtobufInput.MessageSetEncoding.UnknownExtension.ProtobufOutput # Output was not equivalent to reference message: deleted: message_set_correct.4135300[0]: "\000c"
-Required.Proto2.ProtobufInput.UnknownOrdering.ProtobufOutput # Unknown field mismatch
-Required.Proto2.ProtobufInput.UnknownVarint.ProtobufOutput # Output was not equivalent to reference message: Expect: \250\037\001, but got: 
-Required.Proto2.ProtobufInput.ValidDataOneof.BOOL.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto2.ProtobufInput.ValidDataOneof.BYTES.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto2.ProtobufInput.ValidDataOneof.DOUBLE.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto2.ProtobufInput.ValidDataOneof.ENUM.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto2.ProtobufInput.ValidDataOneof.FLOAT.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto2.ProtobufInput.ValidDataOneof.MESSAGE.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto2.ProtobufInput.ValidDataOneof.STRING.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto2.ProtobufInput.ValidDataOneof.UINT32.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto2.ProtobufInput.ValidDataOneof.UINT32.MultipleValuesForDifferentField.ProtobufOutput # Output was not equivalent to reference message: deleted: oneof_uint32: 1added: oneof_nested_message: { }
-Required.Proto2.ProtobufInput.ValidDataOneof.UINT64.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto2.ProtobufInput.ValidMessageSetEncoding.OutOfOrderGroupsEntries.ProtobufOutput # Output was not equivalent to reference message: deleted: message_set_correct.(protobuf_test_messages.proto2.TestAllTypesProto2.M
-Required.Proto2.ProtobufInput.ValidMessageSetEncoding.ProtobufOutput # Output was not equivalent to reference message: deleted: message_set_correct.(protobuf_test_messages.proto2.TestAllTypesProto2.M
-Required.Proto3.JsonInput.Any.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.Any.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyNested.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyNested.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyUnorderedTypeTag.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyUnorderedTypeTag.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyWithDuration.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyWithDuration.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyWithFieldMask.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyWithFieldMask.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyWithInt32ValueWrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyWithInt32ValueWrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyWithStruct.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyWithStruct.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyWithTimestamp.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyWithTimestamp.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyWithValueForInteger.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyWithValueForInteger.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyWithValueForJsonObject.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.AnyWithValueForJsonObject.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.DoubleFieldMaxNegativeValue.JsonOutput # Output was not equivalent to reference message: modified: optional_double: -2.22507e-308 -> -2.2250700000000003e-308
-Required.Proto3.JsonInput.DoubleFieldMaxNegativeValue.ProtobufOutput # Output was not equivalent to reference message: modified: optional_double: -2.22507e-308 -> -2.2250700000000003e-308
-Required.Proto3.JsonInput.DoubleFieldMinPositiveValue.JsonOutput # Output was not equivalent to reference message: modified: optional_double: 2.22507e-308 -> 2.2250700000000003e-308
-Required.Proto3.JsonInput.DoubleFieldMinPositiveValue.ProtobufOutput # Output was not equivalent to reference message: modified: optional_double: 2.22507e-308 -> 2.2250700000000003e-308
-Required.Proto3.JsonInput.DurationMaxValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.DurationMaxValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.DurationMinValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.DurationMinValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.DurationNegativeNanos.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.DurationNegativeNanos.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.DurationNegativeSeconds.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.DurationNegativeSeconds.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.DurationRepeatedValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.DurationRepeatedValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.EmptyFieldMask.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.EmptyFieldMask.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.EnumField.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.EnumField.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.EnumFieldWithAlias.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.EnumFieldWithAlias.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.EnumFieldWithAliasDifferentCase.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.EnumFieldWithAliasDifferentCase.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.EnumFieldWithAliasLowerCase.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.EnumFieldWithAliasLowerCase.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.EnumFieldWithAliasUseAlias.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.EnumFieldWithAliasUseAlias.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.EnumRepeatedField.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.EnumRepeatedField.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.FieldMask.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.FieldMask.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.FloatFieldTooLarge # Should have failed to parse, but didn't.
-Required.Proto3.JsonInput.FloatFieldTooSmall # Should have failed to parse, but didn't.
-Required.Proto3.JsonInput.IgnoreUnknownJsonFalse.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.IgnoreUnknownJsonNull.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.IgnoreUnknownJsonNumber.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.IgnoreUnknownJsonObject.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.IgnoreUnknownJsonString.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.IgnoreUnknownJsonTrue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.Int32FieldNotInteger # Should have failed to parse, but didn't.
-Required.Proto3.JsonInput.Int32FieldQuotedExponentialValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.Int32FieldQuotedExponentialValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.Int32FieldTooLarge # Should have failed to parse, but didn't.
-Required.Proto3.JsonInput.Int32FieldTooSmall # Should have failed to parse, but didn't.
-Required.Proto3.JsonInput.OneofFieldDuplicate # Should have failed to parse, but didn't.
-Required.Proto3.JsonInput.OptionalBoolWrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalBoolWrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalBytesWrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalBytesWrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalDoubleWrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalDoubleWrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalFloatWrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalFloatWrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalInt32Wrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalInt32Wrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalInt64Wrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalInt64Wrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalStringWrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalStringWrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalUint32Wrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalUint32Wrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalUint64Wrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalUint64Wrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalWrapperTypesWithNonDefaultValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OptionalWrapperTypesWithNonDefaultValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OriginalProtoFieldName.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.OriginalProtoFieldName.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedBoolWrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedBoolWrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedBytesWrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedBytesWrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedDoubleWrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedDoubleWrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedFloatWrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedFloatWrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedInt32Wrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedInt32Wrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedInt64Wrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedInt64Wrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedListValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedListValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedStringWrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedStringWrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedUint32Wrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedUint32Wrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedUint64Wrapper.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedUint64Wrapper.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.RepeatedValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.SkipsDefaultPrimitive.Validator # JSON payload validation failed.
-Required.Proto3.JsonInput.Struct.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.Struct.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.StructWithEmptyListValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.StructWithEmptyListValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampEpochValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampEpochValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampLeap.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampLeap.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampLittleAfterEpochlValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampLittleAfterEpochlValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampLittleBeforeEpochValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampLittleBeforeEpochValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampMaxValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampMaxValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampMinValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampMinValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampNanoAfterEpochlValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampNanoAfterEpochlValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampNanoBeforeEpochValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampNanoBeforeEpochValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampRepeatedValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampRepeatedValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampTenAndHalfSecondsAfterEpochValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampTenAndHalfSecondsAfterEpochValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampTenAndHalfSecondsBeforeEpochValue.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampTenAndHalfSecondsBeforeEpochValue.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampWithNegativeOffset.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampWithNegativeOffset.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampWithPositiveOffset.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.TimestampWithPositiveOffset.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.Uint32FieldNotInteger # Should have failed to parse, but didn't.
-Required.Proto3.JsonInput.Uint32FieldTooLarge # Should have failed to parse, but didn't.
-Required.Proto3.JsonInput.ValueAcceptBool.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.ValueAcceptBool.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.ValueAcceptFloat.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.ValueAcceptFloat.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.ValueAcceptInteger.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.ValueAcceptInteger.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.ValueAcceptList.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.ValueAcceptList.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.ValueAcceptNull.JsonOutput # Output was not equivalent to reference message: deleted: optional_value: { null_value: NULL_VALUE }
-Required.Proto3.JsonInput.ValueAcceptNull.ProtobufOutput # Output was not equivalent to reference message: deleted: optional_value: { null_value: NULL_VALUE }
-Required.Proto3.JsonInput.ValueAcceptObject.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.ValueAcceptObject.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.ValueAcceptString.JsonOutput # Failed to parse input or produce output.
-Required.Proto3.JsonInput.ValueAcceptString.ProtobufOutput # Failed to parse input or produce output.
-Required.Proto3.ProtobufInput.UnknownOrdering.ProtobufOutput # Unknown field mismatch
-Required.Proto3.ProtobufInput.UnknownVarint.ProtobufOutput # Output was not equivalent to reference message: Expect: \250\037\001, but got: 
-Required.Proto3.ProtobufInput.ValidDataOneof.BOOL.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto3.ProtobufInput.ValidDataOneof.BYTES.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto3.ProtobufInput.ValidDataOneof.DOUBLE.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto3.ProtobufInput.ValidDataOneof.ENUM.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto3.ProtobufInput.ValidDataOneof.FLOAT.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto3.ProtobufInput.ValidDataOneof.MESSAGE.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto3.ProtobufInput.ValidDataOneof.STRING.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto3.ProtobufInput.ValidDataOneof.UINT32.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
-Required.Proto3.ProtobufInput.ValidDataOneof.UINT32.MultipleValuesForDifferentField.ProtobufOutput # Output was not equivalent to reference message: deleted: oneof_uint32: 1added: oneof_nested_message: { }
-Required.Proto3.ProtobufInput.ValidDataOneof.UINT64.MultipleValuesForDifferentField.JsonOutput # JSON output we received from test was unparseable.
+# ============================================================================
+# BINARY FORMAT FAILURES
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Unknown fields not preserved (by design - CLAUDE.md documents this)
+# We silently discard unknown fields during decoding.
+# ----------------------------------------------------------------------------
+Required.Proto2.ProtobufInput.UnknownOrdering.ProtobufOutput
+Required.Proto2.ProtobufInput.UnknownVarint.ProtobufOutput
+Required.Proto3.ProtobufInput.UnknownOrdering.ProtobufOutput
+Required.Proto3.ProtobufInput.UnknownVarint.ProtobufOutput
+
+# ----------------------------------------------------------------------------
+# Oneof not implemented
+# When switching between oneof fields, we don't clear the previous field.
+# This causes both fields to be serialized instead of just the last one set.
+# ----------------------------------------------------------------------------
+Required.Proto2.ProtobufInput.ValidDataOneof.BOOL.MultipleValuesForDifferentField.JsonOutput
+Required.Proto2.ProtobufInput.ValidDataOneof.BYTES.MultipleValuesForDifferentField.JsonOutput
+Required.Proto2.ProtobufInput.ValidDataOneof.DOUBLE.MultipleValuesForDifferentField.JsonOutput
+Required.Proto2.ProtobufInput.ValidDataOneof.ENUM.MultipleValuesForDifferentField.JsonOutput
+Required.Proto2.ProtobufInput.ValidDataOneof.FLOAT.MultipleValuesForDifferentField.JsonOutput
+Required.Proto2.ProtobufInput.ValidDataOneof.MESSAGE.MultipleValuesForDifferentField.JsonOutput
+Required.Proto2.ProtobufInput.ValidDataOneof.STRING.MultipleValuesForDifferentField.JsonOutput
+Required.Proto2.ProtobufInput.ValidDataOneof.UINT32.MultipleValuesForDifferentField.JsonOutput
+Required.Proto2.ProtobufInput.ValidDataOneof.UINT32.MultipleValuesForDifferentField.ProtobufOutput
+Required.Proto2.ProtobufInput.ValidDataOneof.UINT64.MultipleValuesForDifferentField.JsonOutput
+Required.Proto3.ProtobufInput.ValidDataOneof.BOOL.MultipleValuesForDifferentField.JsonOutput
+Required.Proto3.ProtobufInput.ValidDataOneof.BYTES.MultipleValuesForDifferentField.JsonOutput
+Required.Proto3.ProtobufInput.ValidDataOneof.DOUBLE.MultipleValuesForDifferentField.JsonOutput
+Required.Proto3.ProtobufInput.ValidDataOneof.ENUM.MultipleValuesForDifferentField.JsonOutput
+Required.Proto3.ProtobufInput.ValidDataOneof.FLOAT.MultipleValuesForDifferentField.JsonOutput
+Required.Proto3.ProtobufInput.ValidDataOneof.MESSAGE.MultipleValuesForDifferentField.JsonOutput
+Required.Proto3.ProtobufInput.ValidDataOneof.STRING.MultipleValuesForDifferentField.JsonOutput
+Required.Proto3.ProtobufInput.ValidDataOneof.UINT32.MultipleValuesForDifferentField.JsonOutput
+Required.Proto3.ProtobufInput.ValidDataOneof.UINT32.MultipleValuesForDifferentField.ProtobufOutput
+Required.Proto3.ProtobufInput.ValidDataOneof.UINT64.MultipleValuesForDifferentField.JsonOutput
+Recommended.Proto2.ProtobufInput.ValidDataOneofBinary.BOOL.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto2.ProtobufInput.ValidDataOneofBinary.BYTES.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto2.ProtobufInput.ValidDataOneofBinary.DOUBLE.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto2.ProtobufInput.ValidDataOneofBinary.ENUM.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto2.ProtobufInput.ValidDataOneofBinary.FLOAT.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto2.ProtobufInput.ValidDataOneofBinary.MESSAGE.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto2.ProtobufInput.ValidDataOneofBinary.STRING.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto2.ProtobufInput.ValidDataOneofBinary.UINT32.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto2.ProtobufInput.ValidDataOneofBinary.UINT64.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataOneofBinary.BOOL.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataOneofBinary.BYTES.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataOneofBinary.DOUBLE.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataOneofBinary.ENUM.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataOneofBinary.FLOAT.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataOneofBinary.MESSAGE.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataOneofBinary.STRING.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataOneofBinary.UINT32.MultipleValuesForDifferentField.ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataOneofBinary.UINT64.MultipleValuesForDifferentField.ProtobufOutput
+
+# ----------------------------------------------------------------------------
+# Extensions and MessageSet not supported (by design - CLAUDE.md documents this)
+# Proto2 extensions are silently dropped as unknown fields.
+# ----------------------------------------------------------------------------
+Required.Proto2.ProtobufInput.MessageSetEncoding.UnknownExtension.ProtobufOutput
+Required.Proto2.ProtobufInput.ValidMessageSetEncoding.OutOfOrderGroupsEntries.ProtobufOutput
+Required.Proto2.ProtobufInput.ValidMessageSetEncoding.ProtobufOutput
+Recommended.Proto2.ProtobufInput.ValidMessageSetEncoding.SubmessageEncoding.NotUnknown.ProtobufOutput
+Recommended.Proto2.ProtobufInput.ValidMessageSetEncoding.SubmessageEncoding.ProtobufOutput
+
+# ----------------------------------------------------------------------------
+# Proto3 unified optionality (by design - CLAUDE.md documents this)
+# We serialize fields even when they contain zero/default values.
+# Proto3 spec says to omit default values, but we use unified optionality
+# where all fields have has-bits and are serialized if set.
+# ----------------------------------------------------------------------------
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.BOOL[0].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.BYTES[0].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.DOUBLE[0].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.ENUM[0].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.FIXED32[0].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.FIXED64[0].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.FLOAT[0].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.INT32[0].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.INT32[6].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.INT64[0].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.SFIXED32[0].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.SFIXED64[0].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.SINT32[0].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.SINT64[0].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.STRING[0].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.UINT32[0].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.UINT32[5].ProtobufOutput
+Recommended.Proto3.ProtobufInput.ValidDataScalarBinary.UINT64[0].ProtobufOutput
+
+# ============================================================================
+# JSON FORMAT FAILURES (lower priority - JSON support is basic)
+# ============================================================================
+
+# ----------------------------------------------------------------------------
+# Enum JSON parsing - we parse enums as integers, not string names
+# ----------------------------------------------------------------------------
+Required.Proto2.JsonInput.EnumField.JsonOutput
+Required.Proto2.JsonInput.EnumField.ProtobufOutput
+Required.Proto2.JsonInput.EnumRepeatedField.JsonOutput
+Required.Proto2.JsonInput.EnumRepeatedField.ProtobufOutput
+Required.Proto3.JsonInput.EnumField.JsonOutput
+Required.Proto3.JsonInput.EnumField.ProtobufOutput
+Required.Proto3.JsonInput.EnumFieldWithAlias.JsonOutput
+Required.Proto3.JsonInput.EnumFieldWithAlias.ProtobufOutput
+Required.Proto3.JsonInput.EnumFieldWithAliasDifferentCase.JsonOutput
+Required.Proto3.JsonInput.EnumFieldWithAliasDifferentCase.ProtobufOutput
+Required.Proto3.JsonInput.EnumFieldWithAliasLowerCase.JsonOutput
+Required.Proto3.JsonInput.EnumFieldWithAliasLowerCase.ProtobufOutput
+Required.Proto3.JsonInput.EnumFieldWithAliasUseAlias.JsonOutput
+Required.Proto3.JsonInput.EnumFieldWithAliasUseAlias.ProtobufOutput
+Required.Proto3.JsonInput.EnumRepeatedField.JsonOutput
+Required.Proto3.JsonInput.EnumRepeatedField.ProtobufOutput
+Recommended.Proto2.JsonInput.IgnoreUnknownEnumStringValueInMapPart.ProtobufOutput
+Recommended.Proto2.JsonInput.IgnoreUnknownEnumStringValueInMapValue.ProtobufOutput
+Recommended.Proto2.JsonInput.IgnoreUnknownEnumStringValueInOptionalField.ProtobufOutput
+Recommended.Proto2.JsonInput.IgnoreUnknownEnumStringValueInRepeatedField.ProtobufOutput
+Recommended.Proto2.JsonInput.IgnoreUnknownEnumStringValueInRepeatedPart.ProtobufOutput
+Recommended.Proto2.JsonInput.OneofZeroEnum.JsonOutput
+Recommended.Proto2.JsonInput.OneofZeroEnum.ProtobufOutput
+Recommended.Proto3.JsonInput.IgnoreUnknownEnumStringValueInMapPart.ProtobufOutput
+Recommended.Proto3.JsonInput.IgnoreUnknownEnumStringValueInMapValue.ProtobufOutput
+Recommended.Proto3.JsonInput.IgnoreUnknownEnumStringValueInOptionalField.ProtobufOutput
+Recommended.Proto3.JsonInput.IgnoreUnknownEnumStringValueInRepeatedField.ProtobufOutput
+Recommended.Proto3.JsonInput.IgnoreUnknownEnumStringValueInRepeatedPart.ProtobufOutput
+Recommended.Proto3.JsonInput.OneofZeroEnum.JsonOutput
+Recommended.Proto3.JsonInput.OneofZeroEnum.ProtobufOutput
+
+# ----------------------------------------------------------------------------
+# Well-known types not fully implemented (Any, Duration, Timestamp, etc.)
+# ----------------------------------------------------------------------------
+Required.Proto3.JsonInput.Any.JsonOutput
+Required.Proto3.JsonInput.Any.ProtobufOutput
+Required.Proto3.JsonInput.AnyNested.JsonOutput
+Required.Proto3.JsonInput.AnyNested.ProtobufOutput
+Required.Proto3.JsonInput.AnyUnorderedTypeTag.JsonOutput
+Required.Proto3.JsonInput.AnyUnorderedTypeTag.ProtobufOutput
+Required.Proto3.JsonInput.AnyWithDuration.JsonOutput
+Required.Proto3.JsonInput.AnyWithDuration.ProtobufOutput
+Required.Proto3.JsonInput.AnyWithFieldMask.JsonOutput
+Required.Proto3.JsonInput.AnyWithFieldMask.ProtobufOutput
+Required.Proto3.JsonInput.AnyWithInt32ValueWrapper.JsonOutput
+Required.Proto3.JsonInput.AnyWithInt32ValueWrapper.ProtobufOutput
+Required.Proto3.JsonInput.AnyWithStruct.JsonOutput
+Required.Proto3.JsonInput.AnyWithStruct.ProtobufOutput
+Required.Proto3.JsonInput.AnyWithTimestamp.JsonOutput
+Required.Proto3.JsonInput.AnyWithTimestamp.ProtobufOutput
+Required.Proto3.JsonInput.AnyWithValueForInteger.JsonOutput
+Required.Proto3.JsonInput.AnyWithValueForInteger.ProtobufOutput
+Required.Proto3.JsonInput.AnyWithValueForJsonObject.JsonOutput
+Required.Proto3.JsonInput.AnyWithValueForJsonObject.ProtobufOutput
+Required.Proto3.JsonInput.DurationJsonInputTooLarge
+Required.Proto3.JsonInput.DurationJsonInputTooSmall
+Required.Proto3.JsonInput.DurationNegativeNanos.JsonOutput
+Required.Proto3.JsonInput.DurationNegativeNanos.ProtobufOutput
+Required.Proto3.JsonInput.EmptyFieldMask.JsonOutput
+Required.Proto3.JsonInput.EmptyFieldMask.ProtobufOutput
+Required.Proto3.JsonInput.FieldMask.JsonOutput
+Required.Proto3.JsonInput.FieldMask.ProtobufOutput
+Required.Proto3.JsonInput.TimestampJsonInputLowercaseT
+Required.Proto3.JsonInput.TimestampJsonInputLowercaseZ
+Required.Proto3.JsonInput.TimestampJsonInputMissingT
+Recommended.Proto3.JsonInput.DurationHas3FractionalDigits.Validator
+Recommended.Proto3.JsonInput.DurationHas6FractionalDigits.Validator
+Recommended.Proto3.JsonInput.TimestampHas3FractionalDigits.Validator
+Recommended.Proto3.JsonInput.TimestampHas6FractionalDigits.Validator
+Recommended.Proto3.JsonInput.TimestampHas9FractionalDigits.Validator
+Recommended.Proto3.FieldMaskNumbersDontRoundTrip.JsonOutput
+Recommended.Proto3.FieldMaskPathsDontRoundTrip.JsonOutput
+Recommended.Proto3.FieldMaskTooManyUnderscore.JsonOutput
+
+# ----------------------------------------------------------------------------
+# Wrapper types not implemented
+# ----------------------------------------------------------------------------
+Required.Proto3.JsonInput.OptionalDoubleWrapper.JsonOutput
+Required.Proto3.JsonInput.OptionalDoubleWrapper.ProtobufOutput
+Required.Proto3.JsonInput.OptionalFloatWrapper.JsonOutput
+Required.Proto3.JsonInput.OptionalFloatWrapper.ProtobufOutput
+Required.Proto3.JsonInput.OptionalInt32Wrapper.JsonOutput
+Required.Proto3.JsonInput.OptionalInt32Wrapper.ProtobufOutput
+Required.Proto3.JsonInput.OptionalInt64Wrapper.JsonOutput
+Required.Proto3.JsonInput.OptionalInt64Wrapper.ProtobufOutput
+Required.Proto3.JsonInput.OptionalWrapperTypesWithNonDefaultValue.JsonOutput
+Required.Proto3.JsonInput.OptionalWrapperTypesWithNonDefaultValue.ProtobufOutput
+Required.Proto3.JsonInput.RepeatedDoubleWrapper.JsonOutput
+Required.Proto3.JsonInput.RepeatedDoubleWrapper.ProtobufOutput
+Required.Proto3.JsonInput.RepeatedFloatWrapper.JsonOutput
+Required.Proto3.JsonInput.RepeatedFloatWrapper.ProtobufOutput
+Required.Proto3.JsonInput.RepeatedInt32Wrapper.JsonOutput
+Required.Proto3.JsonInput.RepeatedInt32Wrapper.ProtobufOutput
+Required.Proto3.JsonInput.RepeatedInt64Wrapper.JsonOutput
+Required.Proto3.JsonInput.RepeatedInt64Wrapper.ProtobufOutput
+
+# ----------------------------------------------------------------------------
+# Struct/Value/ListValue types not implemented
+# ----------------------------------------------------------------------------
+Required.Proto3.JsonInput.RepeatedListValue.JsonOutput
+Required.Proto3.JsonInput.RepeatedListValue.ProtobufOutput
+Required.Proto3.JsonInput.RepeatedValue.JsonOutput
+Required.Proto3.JsonInput.RepeatedValue.ProtobufOutput
+Required.Proto3.JsonInput.Struct.JsonOutput
+Required.Proto3.JsonInput.Struct.ProtobufOutput
+Required.Proto3.JsonInput.StructWithEmptyListValue.JsonOutput
+Required.Proto3.JsonInput.StructWithEmptyListValue.ProtobufOutput
+Required.Proto3.JsonInput.ValueAcceptBool.JsonOutput
+Required.Proto3.JsonInput.ValueAcceptBool.ProtobufOutput
+Required.Proto3.JsonInput.ValueAcceptFloat.JsonOutput
+Required.Proto3.JsonInput.ValueAcceptFloat.ProtobufOutput
+Required.Proto3.JsonInput.ValueAcceptInteger.JsonOutput
+Required.Proto3.JsonInput.ValueAcceptInteger.ProtobufOutput
+Required.Proto3.JsonInput.ValueAcceptList.JsonOutput
+Required.Proto3.JsonInput.ValueAcceptList.ProtobufOutput
+Required.Proto3.JsonInput.ValueAcceptNull.JsonOutput
+Required.Proto3.JsonInput.ValueAcceptNull.ProtobufOutput
+Required.Proto3.JsonInput.ValueAcceptObject.JsonOutput
+Required.Proto3.JsonInput.ValueAcceptObject.ProtobufOutput
+Required.Proto3.JsonInput.ValueAcceptString.JsonOutput
+Required.Proto3.JsonInput.ValueAcceptString.ProtobufOutput
+Recommended.Proto3.ValueRejectInfNumberValue.JsonOutput
+Recommended.Proto3.ValueRejectNanNumberValue.JsonOutput
+Recommended.Proto3.JsonInput.NullValueInOtherOneofNewFormat.Validator
+Recommended.Proto3.JsonInput.NullValueInOtherOneofOldFormat.Validator
+
+# ----------------------------------------------------------------------------
+# JSON validation not strict enough (missing range/format checks)
+# ----------------------------------------------------------------------------
+Required.Proto2.JsonInput.FloatFieldTooLarge
+Required.Proto2.JsonInput.FloatFieldTooSmall
+Required.Proto2.JsonInput.Int32FieldNotInteger
+Required.Proto2.JsonInput.Int32FieldTooLarge
+Required.Proto2.JsonInput.Int32FieldTooSmall
+Required.Proto2.JsonInput.Uint32FieldNotInteger
+Required.Proto2.JsonInput.Uint32FieldTooLarge
+Required.Proto3.JsonInput.FloatFieldTooLarge
+Required.Proto3.JsonInput.FloatFieldTooSmall
+Required.Proto3.JsonInput.Int32FieldNotInteger
+Required.Proto3.JsonInput.Int32FieldTooLarge
+Required.Proto3.JsonInput.Int32FieldTooSmall
+Required.Proto3.JsonInput.Uint32FieldNotInteger
+Required.Proto3.JsonInput.Uint32FieldTooLarge
+Recommended.Proto2.JsonInput.FieldNameDuplicate
+Recommended.Proto3.JsonInput.FieldNameDuplicate
+
+# ----------------------------------------------------------------------------
+# JSON field name handling issues
+# ----------------------------------------------------------------------------
+Required.Proto2.JsonInput.OriginalProtoFieldName.JsonOutput
+Required.Proto2.JsonInput.OriginalProtoFieldName.ProtobufOutput
+Required.Proto3.JsonInput.OriginalProtoFieldName.JsonOutput
+Required.Proto3.JsonInput.OriginalProtoFieldName.ProtobufOutput
+
+# ----------------------------------------------------------------------------
+# JSON oneof duplicate detection not implemented
+# ----------------------------------------------------------------------------
+Required.Proto2.JsonInput.OneofFieldDuplicate
+Required.Proto3.JsonInput.OneofFieldDuplicate
+
+# ----------------------------------------------------------------------------
+# JSON unknown field handling
+# ----------------------------------------------------------------------------
+Required.Proto2.JsonInput.IgnoreUnknownJsonFalse.ProtobufOutput
+Required.Proto2.JsonInput.IgnoreUnknownJsonNull.ProtobufOutput
+Required.Proto2.JsonInput.IgnoreUnknownJsonNumber.ProtobufOutput
+Required.Proto2.JsonInput.IgnoreUnknownJsonObject.ProtobufOutput
+Required.Proto2.JsonInput.IgnoreUnknownJsonString.ProtobufOutput
+Required.Proto2.JsonInput.IgnoreUnknownJsonTrue.ProtobufOutput
+Required.Proto3.JsonInput.IgnoreUnknownJsonFalse.ProtobufOutput
+Required.Proto3.JsonInput.IgnoreUnknownJsonNull.ProtobufOutput
+Required.Proto3.JsonInput.IgnoreUnknownJsonNumber.ProtobufOutput
+Required.Proto3.JsonInput.IgnoreUnknownJsonObject.ProtobufOutput
+Required.Proto3.JsonInput.IgnoreUnknownJsonString.ProtobufOutput
+Required.Proto3.JsonInput.IgnoreUnknownJsonTrue.ProtobufOutput
+
+# ----------------------------------------------------------------------------
+# JSON exponential notation for integers
+# ----------------------------------------------------------------------------
+Required.Proto2.JsonInput.Int32FieldQuotedExponentialValue.JsonOutput
+Required.Proto2.JsonInput.Int32FieldQuotedExponentialValue.ProtobufOutput
+Required.Proto3.JsonInput.Int32FieldQuotedExponentialValue.JsonOutput
+Required.Proto3.JsonInput.Int32FieldQuotedExponentialValue.ProtobufOutput
+
+# ----------------------------------------------------------------------------
+# JSON double precision edge cases
+# ----------------------------------------------------------------------------
+Required.Proto2.JsonInput.DoubleFieldMaxNegativeValue.JsonOutput
+Required.Proto2.JsonInput.DoubleFieldMaxNegativeValue.ProtobufOutput
+Required.Proto2.JsonInput.DoubleFieldMinPositiveValue.JsonOutput
+Required.Proto2.JsonInput.DoubleFieldMinPositiveValue.ProtobufOutput
+Required.Proto3.JsonInput.DoubleFieldMaxNegativeValue.JsonOutput
+Required.Proto3.JsonInput.DoubleFieldMaxNegativeValue.ProtobufOutput
+Required.Proto3.JsonInput.DoubleFieldMinPositiveValue.JsonOutput
+Required.Proto3.JsonInput.DoubleFieldMinPositiveValue.ProtobufOutput
+
+# ----------------------------------------------------------------------------
+# JSON int64/uint64 should output as strings
+# ----------------------------------------------------------------------------
+Recommended.Proto2.JsonInput.Int64FieldBeString.Validator
+Recommended.Proto2.JsonInput.Uint64FieldBeString.Validator
+Recommended.Proto3.JsonInput.Int64FieldBeString.Validator
+Recommended.Proto3.JsonInput.Uint64FieldBeString.Validator
+
+# ----------------------------------------------------------------------------
+# JSON base64url encoding for bytes
+# ----------------------------------------------------------------------------
+Recommended.Proto2.JsonInput.BytesFieldBase64Url.JsonOutput
+Recommended.Proto2.JsonInput.BytesFieldBase64Url.ProtobufOutput
+Recommended.Proto3.JsonInput.BytesFieldBase64Url.JsonOutput
+Recommended.Proto3.JsonInput.BytesFieldBase64Url.ProtobufOutput
+
+# ----------------------------------------------------------------------------
+# Proto3 unified optionality affects JSON output (we output default values)
+# ----------------------------------------------------------------------------
+Required.Proto3.JsonInput.SkipsDefaultPrimitive.Validator
+
+# ----------------------------------------------------------------------------
+# Extensions not supported in JSON
+# ----------------------------------------------------------------------------
+Recommended.Proto2.JsonInput.FieldNameExtension.Validator

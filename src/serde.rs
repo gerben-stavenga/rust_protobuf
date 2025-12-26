@@ -108,12 +108,12 @@ fn format_duration(seconds: i64, nanos: i32) -> Result<std::string::String, &'st
         return Ok(format!("{}s", seconds));
     }
 
-    // Combine seconds and nanos, handle negative properly
-    let total_nanos = seconds * 1_000_000_000 + nanos as i64;
-    let abs_seconds = total_nanos.abs() / 1_000_000_000;
-    let abs_nanos = (total_nanos.abs() % 1_000_000_000) as u32;
+    // Work with absolute values to avoid overflow from total_nanos calculation
+    let is_negative = seconds < 0 || nanos < 0;
+    let abs_seconds = seconds.unsigned_abs();
+    let abs_nanos = nanos.unsigned_abs();
 
-    let mut result = if total_nanos < 0 {
+    let mut result = if is_negative {
         format!("-{}.{:09}s", abs_seconds, abs_nanos)
     } else {
         format!("{}.{:09}s", abs_seconds, abs_nanos)
