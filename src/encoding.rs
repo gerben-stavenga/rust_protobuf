@@ -1,7 +1,12 @@
 use core::{mem::MaybeUninit, ptr::NonNull};
 
 use crate::{
-    Protobuf, ProtobufExt, base::Object, containers::Bytes, tables::{AuxTableEntry, Table}, utils::{Stack, StackWithStorage}, wire::{FieldKind, SLOP_SIZE, WriteCursor, zigzag_encode}
+    ProtobufExt,
+    base::Object,
+    containers::Bytes,
+    tables::{AuxTableEntry, Table},
+    utils::{Stack, StackWithStorage},
+    wire::{FieldKind, SLOP_SIZE, WriteCursor, zigzag_encode},
 };
 
 #[repr(C)]
@@ -173,7 +178,7 @@ fn write_repeated_packed<T>(
     }
 
     // Only write tag + length if we wrote all values
-    if obj_state.rep_field_idx == 0 && slice.len() > 0 {
+    if obj_state.rep_field_idx == 0 && !slice.is_empty() {
         let packed_len = unsafe { start_ptr.as_ptr().offset_from(cursor.0.as_ptr()) as u64 };
         cursor.write_varint(packed_len);
         cursor.write_tag(tag); // Tag already has wire type 2

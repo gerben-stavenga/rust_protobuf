@@ -1,12 +1,12 @@
 use core::mem::MaybeUninit;
 use core::ptr::NonNull;
 
-use crate::{Protobuf, ProtobufExt};
 use crate::base::Object;
 use crate::containers::{Bytes, RepeatedField};
 use crate::tables::{AuxTableEntry, Table};
 use crate::utils::{Stack, StackWithStorage};
 use crate::wire::{FieldKind, ReadCursor, SLOP_SIZE, zigzag_decode};
+use crate::ProtobufExt;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -371,6 +371,7 @@ fn unpack_fixed<T>(
     cursor
 }
 
+#[allow(clippy::too_many_arguments)]
 #[inline(never)]
 fn decode_packed<'a, T>(
     limit: isize,
@@ -633,7 +634,7 @@ fn decode_loop<'a>(
                                         ctx.obj.ref_mut::<RepeatedField<i64>>(entry.offset());
                                     let end = (cursor + len).0;
                                     cursor = unpack_varint(field, cursor, end, arena, |v| {
-                                        zigzag_decode(v) as i64
+                                        zigzag_decode(v)
                                     })?;
                                     if cursor != end {
                                         return None;
@@ -644,7 +645,7 @@ fn decode_loop<'a>(
                                     let field =
                                         ctx.obj.ref_mut::<RepeatedField<i64>>(entry.offset());
                                     cursor = unpack_varint(field, cursor, end, arena, |v| {
-                                        zigzag_decode(v) as i64
+                                        zigzag_decode(v)
                                     })?;
                                     return Some((
                                         cursor,
@@ -948,7 +949,7 @@ impl<'a> ResumeableState<'a> {
                 stack,
                 arena,
                 |v| v,
-                |f| DecodeObject::PackedU64(f),
+                DecodeObject::PackedU64,
             )?,
             DecodeObject::PackedU32(field) => decode_packed(
                 self.limit,
@@ -958,7 +959,7 @@ impl<'a> ResumeableState<'a> {
                 stack,
                 arena,
                 |v| v as u32,
-                |f| DecodeObject::PackedU32(f),
+                DecodeObject::PackedU32,
             )?,
             DecodeObject::PackedI64Zigzag(field) => decode_packed(
                 self.limit,
@@ -967,8 +968,8 @@ impl<'a> ResumeableState<'a> {
                 end,
                 stack,
                 arena,
-                |v| zigzag_decode(v as u64) as i64,
-                |f| DecodeObject::PackedI64Zigzag(f),
+                zigzag_decode,
+                DecodeObject::PackedI64Zigzag,
             )?,
             DecodeObject::PackedI32Zigzag(field) => decode_packed(
                 self.limit,
@@ -978,7 +979,7 @@ impl<'a> ResumeableState<'a> {
                 stack,
                 arena,
                 |v| zigzag_decode(v as u32 as u64) as i32,
-                |f| DecodeObject::PackedI32Zigzag(f),
+                DecodeObject::PackedI32Zigzag,
             )?,
             DecodeObject::PackedBool(field) => decode_packed(
                 self.limit,
@@ -988,7 +989,7 @@ impl<'a> ResumeableState<'a> {
                 stack,
                 arena,
                 |v| v != 0,
-                |f| DecodeObject::PackedBool(f),
+                DecodeObject::PackedBool,
             )?,
             DecodeObject::PackedFixed64(field) => {
                 decode_fixed(self.limit, field, cursor, end, stack, arena, |f| {
@@ -1066,12 +1067,12 @@ impl<'a, const STACK_DEPTH: usize> ResumeableDecode<'a, STACK_DEPTH> {
         } = self;
         let state = unsafe { state.assume_init() };
         if matches!(state.object, DecodeObject::None) {
-            println!("Decode already finished");
             return false;
         }
         let Some(state) = state.go_decode(&patch_buffer[..SLOP_SIZE], &mut stack, arena) else {
             return false;
         };
+        
         state.overrun == 0
             && matches!(state.object, DecodeObject::Message(_, _))
             && stack.is_empty()

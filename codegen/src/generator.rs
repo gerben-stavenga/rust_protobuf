@@ -104,8 +104,11 @@ fn generate_file_content(file: &FileDescriptorProto) -> Result<TokenStream> {
         pool.add_file(file);
         let serialized = file.encode_vec::<100>()?;
         let mut arena = protocrap::arena::Arena::new(&std::alloc::Global);
-        let dyn_file_descriptor =
-            pool.decode_message("google.protobuf.FileDescriptorProto", &serialized, &mut arena)?;
+        let dyn_file_descriptor = pool.decode_message(
+            "google.protobuf.FileDescriptorProto",
+            &serialized,
+            &mut arena,
+        )?;
         crate::static_gen::generate_static_dynamic(&dyn_file_descriptor)?
     } else {
         let dynamic_file = protocrap::reflection::DynamicMessage::new(file);
@@ -231,8 +234,7 @@ fn generate_message_impl(
         .collect();
 
     let has_bits_count = has_bit_fields.len();
-    let has_bits_words = (has_bits_count + 31) / 32;
-    let has_bits_words = has_bits_words.max(1);
+    let has_bits_words = has_bits_count.div_ceil(32);
 
     // Struct fields
     let struct_fields: Vec<_> = message

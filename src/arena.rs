@@ -43,6 +43,14 @@ impl<'a> Arena<'a> {
         ptr.as_ptr() as *mut T
     }
 
+    pub fn place<T>(&mut self, val: T) -> &'a mut T {
+        let p = self.alloc::<T>();
+        unsafe {
+            p.write(val);
+            &mut *p
+        }
+    }
+
     /// Allocate an uninitialized slice of T with given length
     pub fn alloc_slice<T>(&mut self, len: usize) -> *mut [T] {
         let layout = Layout::array::<T>(len).expect("Layout overflow");
@@ -63,15 +71,15 @@ impl<'a> Arena<'a> {
         let aligned_cursor = aligned_addr as *mut u8;
 
         // Check if we have enough space: end - aligned_cursor >= size
-        let available = self.end as usize - aligned_cursor as usize;
-        if core::hint::likely(available >= size) {
+        let available = self.end as isize - aligned_cursor as isize;
+        if core::hint::likely(available >= size as isize) {
             // Fits in current block - use it regardless of size
             self.cursor = unsafe { aligned_cursor.add(size) };
             return unsafe { NonNull::new_unchecked(aligned_cursor) };
         }
 
         // Doesn't fit - need new allocation strategy
-        self.alloc_outlined(layout, available)
+        self.alloc_outlined(layout, available as usize)
     }
 
     /// Get total bytes allocated by this arena

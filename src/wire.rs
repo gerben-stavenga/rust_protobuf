@@ -203,7 +203,7 @@ pub struct WriteCursor(pub NonNull<u8>);
 
 impl WriteCursor {
     pub fn new(buffer: &mut [u8]) -> (Self, NonNull<u8>) {
-        let mut ptr = WriteCursor(NonNull::from_ref(&buffer[0]));
+        let mut ptr = WriteCursor(NonNull::from_mut(&mut buffer[0]));
         let end = ptr.0;
         ptr += buffer.len() as isize;
         (ptr, end)

@@ -1,9 +1,15 @@
 use crate::{
-    Protobuf, ProtobufExt, arena::Arena, base::{Message, Object}, containers::{Bytes, String}, google::protobuf::{
+    Protobuf, ProtobufExt,
+    arena::Arena,
+    base::{Message, Object},
+    containers::{Bytes, String},
+    google::protobuf::{
         DescriptorProto::ProtoType as DescriptorProto,
         FieldDescriptorProto::{Label, ProtoType as FieldDescriptorProto, Type},
         FileDescriptorProto::ProtoType as FileDescriptorProto,
-    }, tables::Table, wire
+    },
+    tables::Table,
+    wire,
 };
 
 pub fn field_kind_tokens(field: &&FieldDescriptorProto) -> wire::FieldKind {
@@ -48,20 +54,21 @@ pub fn calculate_tag_with_syntax(field: &FieldDescriptorProto, syntax: Option<&s
     let is_repeated = field.label().unwrap() == Label::LABEL_REPEATED;
 
     // Determine if packed encoding should be used (only for repeated primitive fields)
-    let is_packed = is_repeated && if let Some(opts) = field.options() {
-        if opts.has_packed() {
-            // Explicit packed option takes precedence
-            opts.packed()
+    let is_packed = is_repeated
+        && if let Some(opts) = field.options() {
+            if opts.has_packed() {
+                // Explicit packed option takes precedence
+                opts.packed()
+            } else {
+                // No explicit option - use default based on syntax
+                // Proto3 defaults to packed for repeated primitive fields
+                // Proto2 defaults to unpacked
+                syntax == Some("proto3")
+            }
         } else {
-            // No explicit option - use default based on syntax
-            // Proto3 defaults to packed for repeated primitive fields
-            // Proto2 defaults to unpacked
+            // No options at all - use syntax-based default
             syntax == Some("proto3")
-        }
-    } else {
-        // No options at all - use syntax-based default
-        syntax == Some("proto3")
-    };
+        };
 
     let wire_type = match field.r#type().unwrap() {
         Type::TYPE_INT32
@@ -113,21 +120,27 @@ pub fn default_value<'a>(field: &'a FieldDescriptorProto) -> Option<Value<'a, 'a
         TYPE_SINT64 => Some(Value::Int64(0)),
         TYPE_FIXED32 | TYPE_SFIXED32 | TYPE_FLOAT => Some(Value::Int32(0)),
         TYPE_FIXED64 | TYPE_SFIXED64 | TYPE_DOUBLE => Some(Value::Int64(0)),
-        TYPE_STRING => Some(Value::String(&"")),
+        TYPE_STRING => Some(Value::String("")),
         TYPE_BYTES => Some(Value::Bytes(&[])),
         TYPE_MESSAGE | TYPE_GROUP => None,
     }
 }
 
-pub fn debug_message<T: Protobuf>(msg: &T, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-    let dynamic_msg = crate::reflection::DynamicMessage::new(msg);
+pub fn debug_message<'msg, T: Protobuf>(
+    msg: &'msg T,
+    f: &mut core::fmt::Formatter<'_>,
+) -> core::fmt::Result {
+    #[allow(mutable_transmutes)]
+    let dynamic_msg = crate::reflection::DynamicMessage::new(unsafe {
+        std::mem::transmute::<&'msg T, &'msg mut T>(msg)
+    });
     use core::fmt::Debug;
     dynamic_msg.fmt(f)
 }
 
 pub struct DescriptorPool<'alloc> {
-    arena: Arena<'alloc>,
-    tables: std::collections::HashMap<std::string::String, &'alloc Table>,
+    pub arena: Arena<'alloc>,
+    tables: std::collections::HashMap<std::string::String, &'alloc mut Table>,
 }
 
 impl<'alloc> DescriptorPool<'alloc> {
@@ -172,7 +185,12 @@ impl<'alloc> DescriptorPool<'alloc> {
         }
     }
 
-    fn add_message(&mut self, message: &'alloc DescriptorProto, full_name: &str, syntax: Option<&str>) {
+    fn add_message(
+        &mut self,
+        message: &'alloc DescriptorProto,
+        full_name: &str,
+        syntax: Option<&str>,
+    ) {
         // Build table from descriptor
         let table = self.build_table_from_descriptor(message, syntax);
         self.tables.insert(full_name.to_string(), table);
@@ -187,8 +205,8 @@ impl<'alloc> DescriptorPool<'alloc> {
     fn patch_message_aux_entries(&mut self, full_name: &str) {
         use crate::tables::AuxTableEntry;
 
-        let table = match self.tables.get(full_name) {
-            Some(&t) => t,
+        let table = match self.tables.get_mut(full_name) {
+            Some(t) => &mut **t,
             None => return,
         };
 
@@ -216,8 +234,8 @@ impl<'alloc> DescriptorPool<'alloc> {
                 .extend(std::alloc::Layout::array::<AuxTableEntry>(num_aux_entries).unwrap())
                 .unwrap();
 
-            let aux_ptr = (table as *const Table as *const u8).add(aux_offset_from_table)
-                as *mut AuxTableEntry;
+            let aux_ptr =
+                (table as *mut Table as *mut u8).add(aux_offset_from_table) as *mut AuxTableEntry;
 
             // Patch each aux entry with the correct child table pointer
             let mut aux_idx = 0;
@@ -226,9 +244,9 @@ impl<'alloc> DescriptorPool<'alloc> {
                     let child_type_name = Self::normalize_type_name(field.type_name());
                     let child_table_ptr = self
                         .tables
-                        .get(child_type_name)
-                        .map(|&t| t as *const Table)
-                        .unwrap_or(core::ptr::null());
+                        .get_mut(child_type_name)
+                        .map(|t| *t as *mut Table)
+                        .unwrap_or(core::ptr::null_mut());
 
                     if !child_table_ptr.is_null() {
                         (*aux_ptr.add(aux_idx)).child_table = child_table_ptr;
@@ -247,17 +265,15 @@ impl<'alloc> DescriptorPool<'alloc> {
 
     /// Get a table by message type name
     pub fn get_table(&self, message_type: &str) -> Option<&Table> {
-        self.tables.get(message_type).copied()
+        self.tables.get(message_type).map(|t| &**t)
     }
 
-    /// Create a DynamicMessage by decoding bytes with the given message type
-    pub fn decode_message<'msg>(
-        &'msg self,
+    pub fn create_message<'pool, 'msg>(
+        &'pool self,
         message_type: &str,
-        bytes: &[u8],
-        arena: &mut Arena,
-    ) -> anyhow::Result<DynamicMessage<'alloc, 'msg>> {
-        let table = *self
+        arena: &mut Arena<'msg>,
+    ) -> anyhow::Result<DynamicMessage<'pool, 'msg>> {
+        let table = &**self
             .tables
             .get(message_type)
             .ok_or_else(|| anyhow::anyhow!("Message type '{}' not found in pool", message_type))?;
@@ -266,9 +282,36 @@ impl<'alloc> DescriptorPool<'alloc> {
         let layout = std::alloc::Layout::from_size_align(table.size as usize, 8)
             .map_err(|e| anyhow::anyhow!("Invalid layout: {}", e))?;
         let ptr = arena.alloc_raw(layout).as_ptr() as *mut Object;
+        assert!((ptr as usize) & 7 == 0);
         let object = unsafe {
             // Zero-initialize the object
-            core::ptr::write_bytes(ptr, 0, table.size as usize);
+            core::ptr::write_bytes(ptr as *mut u8, 0, table.size as usize);
+            &mut *ptr
+        };
+
+        Ok(DynamicMessage { object, table })
+    }
+
+    /// Create a DynamicMessage by decoding bytes with the given message type
+    pub fn decode_message<'pool, 'msg>(
+        &'pool self,
+        message_type: &str,
+        bytes: &[u8],
+        arena: &'msg mut Arena,
+    ) -> anyhow::Result<DynamicMessage<'pool, 'msg>> {
+        let table = &**self
+            .tables
+            .get(message_type)
+            .ok_or_else(|| anyhow::anyhow!("Message type '{}' not found in pool", message_type))?;
+
+        // Allocate object with proper alignment (8 bytes for all protobuf types)
+        let layout = std::alloc::Layout::from_size_align(table.size as usize, 8)
+            .map_err(|e| anyhow::anyhow!("Invalid layout: {}", e))?;
+        let ptr = arena.alloc_raw(layout).as_ptr() as *mut Object;
+        assert!((ptr as usize) & 7 == 0);
+        let object = unsafe {
+            // Zero-initialize the object
+            core::ptr::write_bytes(ptr as *mut u8, 0, table.size as usize);
             &mut *ptr
         };
 
@@ -278,11 +321,13 @@ impl<'alloc> DescriptorPool<'alloc> {
         Ok(DynamicMessage { object, table })
     }
 
+    // TODO: improve lifetime annotations
+    #[allow(clippy::mut_from_ref)]
     fn build_table_from_descriptor(
         &mut self,
         descriptor: &'alloc DescriptorProto,
         syntax: Option<&str>,
-    ) -> &'alloc Table {
+    ) -> &'alloc mut Table {
         use crate::{decoding, encoding, tables::AuxTableEntry};
 
         // Calculate sizes
@@ -308,21 +353,26 @@ impl<'alloc> DescriptorPool<'alloc> {
 
         let num_decode_entries = (max_field_number + 1) as usize;
 
-        // Calculate field offsets and total size with proper alignment
-        let mut offset = has_bits_size;
+        // Calculate field offsets and total size using Layout::extend for proper padding
+        // Start with has_bits layout (always u32 array, so alignment is 4)
+        let mut layout = std::alloc::Layout::from_size_align(has_bits_size as usize, 4).unwrap();
         let mut field_offsets = std::vec::Vec::new();
 
         for &field in descriptor.field() {
-            // Align offset to field's alignment requirement
+            let field_size = self.field_size(field);
             let field_align = self.field_align(field);
-            offset = (offset + field_align - 1) & !(field_align - 1);
+            let field_layout =
+                std::alloc::Layout::from_size_align(field_size as usize, field_align as usize)
+                    .unwrap();
 
-            field_offsets.push((field, offset));
-            offset += self.field_size(field);
+            let (new_layout, offset) = layout.extend(field_layout).unwrap();
+            field_offsets.push((field, offset as u32));
+            layout = new_layout;
         }
 
-        // Align final size to largest field alignment (typically 8 for Message/String)
-        let total_size = (offset + 7) & !7;
+        // Pad to struct alignment
+        let layout = layout.pad_to_align();
+        let total_size = layout.size() as u32;
 
         // Count message fields for aux entries
         let num_aux_entries = descriptor.field().iter().filter(|f| is_message(f)).count();
@@ -455,9 +505,9 @@ impl<'alloc> DescriptorPool<'alloc> {
                 let child_type_name = Self::normalize_type_name(field.type_name());
                 let child_table_ptr = self
                     .tables
-                    .get(child_type_name)
-                    .map(|&t| t as *const Table)
-                    .unwrap_or(core::ptr::null());
+                    .get_mut(child_type_name)
+                    .map(|t| *t as *mut Table)
+                    .unwrap_or(core::ptr::null_mut());
 
                 aux_ptr.add(aux_index).write(AuxTableEntry {
                     offset,
@@ -465,7 +515,7 @@ impl<'alloc> DescriptorPool<'alloc> {
                 });
             }
 
-            &*table_ptr
+            &mut *table_ptr
         }
     }
 
@@ -528,7 +578,7 @@ impl<'alloc> DescriptorPool<'alloc> {
 }
 
 pub struct DynamicMessage<'pool, 'msg> {
-    pub object: &'msg Object,
+    pub object: &'msg mut Object,
     pub table: &'pool Table,
 }
 
@@ -547,7 +597,7 @@ impl<'pool, 'msg> ProtobufExt for DynamicMessage<'pool, 'msg> {
     }
 
     fn as_object_mut(&mut self) -> &mut Object {
-        panic!("DynamicMessage is immutable");
+        self.object
     }
 }
 
@@ -564,12 +614,12 @@ impl<'pool, 'msg> core::fmt::Debug for DynamicMessage<'pool, 'msg> {
 }
 
 impl<'pool, 'msg> DynamicMessage<'pool, 'msg> {
-    pub fn new<T>(msg: &'msg T) -> Self
+    pub fn new<T>(msg: &'msg mut T) -> Self
     where
         T: crate::Protobuf,
     {
         DynamicMessage {
-            object: msg.as_object(),
+            object: msg.as_object_mut(),
             table: T::table(),
         }
     }
@@ -591,7 +641,10 @@ impl<'pool, 'msg> DynamicMessage<'pool, 'msg> {
             .copied()
     }
 
-    pub fn find_field_descriptor_by_number(&self, field_number: i32) -> Option<&'pool FieldDescriptorProto> {
+    pub fn find_field_descriptor_by_number(
+        &self,
+        field_number: i32,
+    ) -> Option<&'pool FieldDescriptorProto> {
         self.table
             .descriptor
             .field()

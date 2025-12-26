@@ -292,4 +292,24 @@ pub mod tests {
     fn file_descriptor_roundtrip() {
         assert_roundtrip(&crate::google::protobuf::FILE_DESCRIPTOR_PROTO);
     }
+
+    #[test]
+    fn dynamic_file_descriptor_roundtrip() {
+        let mut pool = crate::reflection::DescriptorPool::new(&std::alloc::Global);
+        let file_descriptor =
+            crate::google::protobuf::FileDescriptorProto::ProtoType::file_descriptor();
+        pool.add_file(&file_descriptor);
+
+        let bytes = file_descriptor.encode_vec::<32>().expect("should encode");
+        let mut arena = crate::arena::Arena::new(&std::alloc::Global);
+        let dynamic_file_descriptor = pool
+            .decode_message("google.protobuf.FileDescriptorProto", &bytes, &mut arena)
+            .expect("should decode");
+
+        let roundtrip = dynamic_file_descriptor
+            .encode_vec::<32>()
+            .expect("should encode");
+
+        assert_eq!(bytes, roundtrip);
+    }
 }
