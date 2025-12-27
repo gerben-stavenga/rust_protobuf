@@ -1,5 +1,5 @@
 use crate::{
-    Protobuf, ProtobufExt,
+    Protobuf, ProtobufRef, ProtobufMut,
     arena::Arena,
     base::{Message, Object},
     containers::{Bytes, String},
@@ -132,12 +132,8 @@ pub fn debug_message<'msg, T: Protobuf>(
     msg: &'msg T,
     f: &mut core::fmt::Formatter<'_>,
 ) -> core::fmt::Result {
-    #[allow(mutable_transmutes)]
-    let dynamic_msg = crate::reflection::DynamicMessage::new(unsafe {
-        std::mem::transmute::<&'msg T, &'msg mut T>(msg)
-    });
-    use core::fmt::Debug;
-    dynamic_msg.fmt(f)
+    let dynamic_msg = DynamicMessageRef::new(msg);
+    core::fmt::Debug::fmt(&dynamic_msg, f)
 }
 
 pub struct DescriptorPool<'alloc> {
@@ -579,31 +575,32 @@ impl<'alloc> DescriptorPool<'alloc> {
     }
 }
 
+/// Read-only view of a dynamic protobuf message.
+/// Used for Debug, Serialize, encode, and field inspection.
+pub struct DynamicMessageRef<'pool, 'msg> {
+    pub object: &'msg Object,
+    pub table: &'pool Table,
+}
+
+/// Mutable view of a dynamic protobuf message.
+/// Used for deserialization and modification.
 pub struct DynamicMessage<'pool, 'msg> {
     pub object: &'msg mut Object,
     pub table: &'pool Table,
 }
 
-impl<'pool, 'msg> ProtobufExt for DynamicMessage<'pool, 'msg> {
-    fn table(&self) -> &'static Table {
-        // SAFETY: table lives in 'pool which outlives 'static usage here
-        unsafe { std::mem::transmute(self.table) }
-    }
+// Deref allows DynamicMessage to use all DynamicMessageRef methods
+impl<'pool, 'msg> core::ops::Deref for DynamicMessage<'pool, 'msg> {
+    type Target = DynamicMessageRef<'pool, 'msg>;
 
-    fn descriptor(&self) -> &'static DescriptorProto {
-        self.table.descriptor
-    }
-
-    fn as_object(&self) -> &Object {
-        self.object
-    }
-
-    fn as_object_mut(&mut self) -> &mut Object {
-        self.object
+    fn deref(&self) -> &Self::Target {
+        // SAFETY: DynamicMessageRef has the same layout with &Object instead of &mut Object
+        // and we're only providing immutable access through the Deref
+        unsafe { &*(self as *const DynamicMessage<'pool, 'msg> as *const DynamicMessageRef<'pool, 'msg>) }
     }
 }
 
-impl<'pool, 'msg> core::fmt::Debug for DynamicMessage<'pool, 'msg> {
+impl<'pool, 'msg> core::fmt::Debug for DynamicMessageRef<'pool, 'msg> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let mut debug_struct = f.debug_struct(self.table.descriptor.name());
         for field in self.table.descriptor.field() {
@@ -615,18 +612,25 @@ impl<'pool, 'msg> core::fmt::Debug for DynamicMessage<'pool, 'msg> {
     }
 }
 
-impl<'pool, 'msg> DynamicMessage<'pool, 'msg> {
-    pub fn new<T>(msg: &'msg mut T) -> Self
+impl<'pool, 'msg> core::fmt::Debug for DynamicMessage<'pool, 'msg> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        // Delegate to DynamicMessageRef's Debug impl via Deref
+        core::fmt::Debug::fmt(&**self, f)
+    }
+}
+
+impl<'pool, 'msg> DynamicMessageRef<'pool, 'msg> {
+    pub fn new<T>(msg: &'msg T) -> Self
     where
         T: crate::Protobuf,
     {
-        DynamicMessage {
-            object: msg.as_object_mut(),
+        DynamicMessageRef {
+            object: msg.as_object(),
             table: T::table(),
         }
     }
 
-    pub fn table(&self) -> &Table {
+    pub fn table(&self) -> &'pool Table {
         self.table
     }
 
@@ -655,7 +659,7 @@ impl<'pool, 'msg> DynamicMessage<'pool, 'msg> {
             .copied()
     }
 
-    pub fn get_field(&'msg self, field: &'pool FieldDescriptorProto) -> Option<Value<'pool, 'msg>> {
+    pub fn get_field(&self, field: &'pool FieldDescriptorProto) -> Option<Value<'pool, 'msg>> {
         let entry = self.table.entry(field.number() as u32).unwrap();
         if field.label().unwrap() == Label::LABEL_REPEATED {
             // Repeated field
@@ -777,8 +781,8 @@ impl<'pool, 'msg> DynamicMessage<'pool, 'msg> {
                     if msg.0.is_null() {
                         return None;
                     }
-                    let dynamic_msg = DynamicMessage {
-                        object: unsafe { &mut *msg.0 },
+                    let dynamic_msg = DynamicMessageRef {
+                        object: unsafe { &*msg.0 },
                         table: unsafe { &*aux_entry.child_table },
                     };
                     return Some(Value::Message(dynamic_msg));
@@ -794,6 +798,53 @@ impl<'pool, 'msg> DynamicMessage<'pool, 'msg> {
     }
 }
 
+impl<'pool, 'msg> DynamicMessage<'pool, 'msg> {
+    pub fn new<T>(msg: &'msg mut T) -> Self
+    where
+        T: crate::Protobuf,
+    {
+        DynamicMessage {
+            object: msg.as_object_mut(),
+            table: T::table(),
+        }
+    }
+
+    pub fn as_ref(&self) -> &DynamicMessageRef<'pool, 'msg> {
+        // SAFETY: DynamicMessage and DynamicMessageRef have the same layout
+        // (one has &mut Object, the other &Object)
+        unsafe { &*(self as *const DynamicMessage<'pool, 'msg> as *const DynamicMessageRef<'pool, 'msg>) }
+    }
+}
+
+// ProtobufRef implementation for DynamicMessageRef
+impl<'pool, 'msg> ProtobufRef<'pool> for DynamicMessageRef<'pool, 'msg> {
+    fn table(&self) -> &'pool crate::tables::Table {
+        self.table
+    }
+
+    fn as_object(&self) -> &crate::base::Object {
+        self.object
+    }
+}
+
+// ProtobufRef implementation for DynamicMessage (delegates via Deref)
+impl<'pool, 'msg> ProtobufRef<'pool> for DynamicMessage<'pool, 'msg> {
+    fn table(&self) -> &'pool crate::tables::Table {
+        self.table
+    }
+
+    fn as_object(&self) -> &crate::base::Object {
+        self.object
+    }
+}
+
+// ProtobufMut implementation for DynamicMessage
+impl<'pool, 'msg> ProtobufMut<'pool> for DynamicMessage<'pool, 'msg> {
+    fn as_object_mut(&mut self) -> &mut crate::base::Object {
+        self.object
+    }
+}
+
 pub struct DynamicMessageArray<'pool, 'msg> {
     pub object: &'msg [Message],
     pub table: &'pool Table,
@@ -802,8 +853,8 @@ pub struct DynamicMessageArray<'pool, 'msg> {
 impl<'pool, 'msg> core::fmt::Debug for DynamicMessageArray<'pool, 'msg> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.debug_list()
-            .entries(self.object.iter().map(|msg| DynamicMessage {
-                object: unsafe { &mut *msg.0 },
+            .entries(self.object.iter().map(|msg| DynamicMessageRef {
+                object: unsafe { &*msg.0 },
                 table: self.table,
             }))
             .finish()
@@ -819,60 +870,72 @@ impl<'pool, 'msg> DynamicMessageArray<'pool, 'msg> {
         self.object.is_empty()
     }
 
-    pub fn get(&self, index: usize) -> DynamicMessage<'pool, 'msg> {
+    pub fn get(&self, index: usize) -> DynamicMessageRef<'pool, 'msg> {
         let obj = self.object[index];
-        DynamicMessage {
-            object: unsafe { &mut *obj.0 },
+        DynamicMessageRef {
+            object: unsafe { &*obj.0 },
             table: self.table,
         }
     }
 
-    pub fn iter<'a>(&'a self) -> DynamicMessageArrayIter<'pool, 'a> {
+    pub fn iter<'a>(&'a self) -> DynamicMessageArrayIter<'pool, 'a>
+    where
+        'msg: 'a,
+    {
         DynamicMessageArrayIter {
-            array: self,
+            object: self.object,
+            table: self.table,
             index: 0,
         }
     }
 }
 
-// Iterator struct
-pub struct DynamicMessageArrayIter<'pool, 'msg> {
-    array: &'msg DynamicMessageArray<'pool, 'msg>,
+// Iterator struct - holds the data directly instead of borrowing the array
+pub struct DynamicMessageArrayIter<'pool, 'a> {
+    object: &'a [Message],
+    table: &'pool Table,
     index: usize,
 }
 
-impl<'pool, 'msg> Iterator for DynamicMessageArrayIter<'pool, 'msg> {
-    type Item = DynamicMessage<'pool, 'msg>;
+impl<'pool, 'a> Iterator for DynamicMessageArrayIter<'pool, 'a> {
+    type Item = DynamicMessageRef<'pool, 'a>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.index < self.array.len() {
-            let item = self.array.get(self.index);
+        if self.index < self.object.len() {
+            let obj = self.object[self.index];
             self.index += 1;
-            Some(item)
+            Some(DynamicMessageRef {
+                object: unsafe { &*obj.0 },
+                table: self.table,
+            })
         } else {
             None
         }
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        let remaining = self.array.len() - self.index;
+        let remaining = self.object.len() - self.index;
         (remaining, Some(remaining))
     }
 }
 
-impl<'pool, 'msg> ExactSizeIterator for DynamicMessageArrayIter<'pool, 'msg> {
+impl<'pool, 'a> ExactSizeIterator for DynamicMessageArrayIter<'pool, 'a> {
     fn len(&self) -> usize {
-        self.array.len() - self.index
+        self.object.len() - self.index
     }
 }
 
 // IntoIterator for easy use with for loops
-impl<'pool, 'msg> IntoIterator for &'msg DynamicMessageArray<'pool, 'msg> {
-    type Item = DynamicMessage<'pool, 'msg>;
+impl<'pool, 'msg> IntoIterator for &DynamicMessageArray<'pool, 'msg> {
+    type Item = DynamicMessageRef<'pool, 'msg>;
     type IntoIter = DynamicMessageArrayIter<'pool, 'msg>;
 
     fn into_iter(self) -> Self::IntoIter {
-        self.iter()
+        DynamicMessageArrayIter {
+            object: self.object,
+            table: self.table,
+            index: 0,
+        }
     }
 }
 
@@ -887,7 +950,7 @@ pub enum Value<'pool, 'msg> {
     Bool(bool),
     String(&'msg str),
     Bytes(&'msg [u8]),
-    Message(DynamicMessage<'pool, 'msg>),
+    Message(DynamicMessageRef<'pool, 'msg>),
     RepeatedInt32(&'msg [i32]),
     RepeatedInt64(&'msg [i64]),
     RepeatedUInt32(&'msg [u32]),

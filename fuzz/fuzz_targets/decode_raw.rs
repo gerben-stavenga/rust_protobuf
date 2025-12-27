@@ -2,7 +2,7 @@
 #![feature(allocator_api)]
 
 use libfuzzer_sys::fuzz_target;
-use protocrap::ProtobufExt;
+use protocrap::ProtobufMut;
 
 fuzz_target!(|data: &[u8]| {
     // Try to decode arbitrary bytes as a FileDescriptorProto

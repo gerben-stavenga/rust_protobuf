@@ -2,7 +2,7 @@
 
 use anyhow::{Result, bail};
 use protocrap; // Keep this for generated code
-use protocrap::ProtobufExt;
+use protocrap::ProtobufMut;
 use protocrap::reflection::DescriptorPool;
 
 // Include all generated code from conformance_all.proto
@@ -40,6 +40,7 @@ pub fn load_descriptor_pool() -> Result<DescriptorPool<'static>> {
 
 #[cfg(test)]
 mod tests {
+    use protocrap::ProtobufRef;
     use protocrap::tables::{AuxTableEntry, Table};
 
     use crate::conformance::{ConformanceRequest, ConformanceResponse, WireFormat};

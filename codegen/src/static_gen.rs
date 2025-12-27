@@ -5,7 +5,7 @@ use anyhow::Result;
 use proc_macro2::{Literal, TokenStream};
 use protocrap::{
     google::protobuf::FieldDescriptorProto::{ProtoType as FieldDescriptorProto, Type},
-    reflection::{DynamicMessage, Value, is_repeated, needs_has_bit},
+    reflection::{DynamicMessageRef, Value, is_repeated, needs_has_bit},
 };
 use quote::{ToTokens, format_ident, quote};
 
@@ -40,7 +40,7 @@ fn full_name(name: &str) -> Vec<proc_macro2::Ident> {
 }
 
 /// Generate static initializer for any proto message using runtime reflection
-pub(crate) fn generate_static_dynamic(value: &DynamicMessage) -> Result<TokenStream> {
+pub(crate) fn generate_static_dynamic(value: &DynamicMessageRef) -> Result<TokenStream> {
     // Calculate has_bits
     let has_bits = calculate_has_bits(&value);
     let has_bits_tokens = generate_has_bits_array(&has_bits);
@@ -61,7 +61,7 @@ pub(crate) fn generate_static_dynamic(value: &DynamicMessage) -> Result<TokenStr
     })
 }
 
-fn calculate_has_bits(value: &DynamicMessage) -> Vec<u32> {
+fn calculate_has_bits(value: &DynamicMessageRef) -> Vec<u32> {
     let descriptor = value.descriptor();
     let num_has_bits = descriptor
         .field()
@@ -95,7 +95,7 @@ fn generate_has_bits_array(has_bits: &[u32]) -> TokenStream {
     quote! { [#(#values),*] }
 }
 
-fn generate_field_initializers(value: &DynamicMessage) -> Result<Vec<TokenStream>> {
+fn generate_field_initializers(value: &DynamicMessageRef) -> Result<Vec<TokenStream>> {
     let mut inits = Vec::new();
 
     let mut fields = Vec::from(value.descriptor().field());
@@ -262,7 +262,7 @@ fn generate_field_value(value: Value) -> Result<(TokenStream, TokenStream)> {
     }
 }
 
-fn generate_nested_message(msg: &DynamicMessage) -> Result<TokenStream> {
+fn generate_nested_message(msg: &DynamicMessageRef) -> Result<TokenStream> {
     let nested_initializer = generate_static_dynamic(msg)?;
     // Parse type path
     let path_parts: Vec<_> = full_name(msg.descriptor().name());

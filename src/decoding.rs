@@ -1,7 +1,7 @@
 use core::mem::MaybeUninit;
 use core::ptr::NonNull;
 
-use crate::ProtobufExt;
+use crate::ProtobufMut;
 use crate::base::Object;
 use crate::containers::{Bytes, RepeatedField};
 use crate::tables::{AuxTableEntry, Table};
@@ -1052,7 +1052,7 @@ pub struct ResumeableDecode<'a, const STACK_DEPTH: usize> {
 }
 
 impl<'a, const STACK_DEPTH: usize> ResumeableDecode<'a, STACK_DEPTH> {
-    pub fn new<T: ProtobufExt + ?Sized>(obj: &'a mut T, limit: isize) -> Self {
+    pub fn new<'pool: 'a, T: ProtobufMut<'pool> + ?Sized>(obj: &'a mut T, limit: isize) -> Self {
         let table = obj.table();
         let object = DecodeObject::Message(obj.as_object_mut(), table);
         Self {

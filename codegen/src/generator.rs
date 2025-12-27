@@ -7,7 +7,7 @@ use crate::names::*;
 use crate::tables;
 use anyhow::Result;
 use proc_macro2::TokenStream;
-use protocrap::ProtobufExt;
+use protocrap::ProtobufRef;
 use protocrap::google::protobuf::DescriptorProto::ProtoType as DescriptorProto;
 use protocrap::google::protobuf::EnumDescriptorProto::ProtoType as EnumDescriptorProto;
 use protocrap::google::protobuf::FieldDescriptorProto::Type;
@@ -111,10 +111,7 @@ fn generate_file_content(file: &FileDescriptorProto) -> Result<TokenStream> {
         )?;
         crate::static_gen::generate_static_dynamic(&dyn_file_descriptor)?
     } else {
-        #[allow(mutable_transmutes, invalid_reference_casting)]
-        let dynamic_file = protocrap::reflection::DynamicMessage::new(unsafe {
-            std::mem::transmute::<&FileDescriptorProto, &mut FileDescriptorProto>(file)
-        });
+        let dynamic_file = protocrap::reflection::DynamicMessageRef::new(file);
         crate::static_gen::generate_static_dynamic(&dynamic_file)?
     };
 

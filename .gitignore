@@ -2,5 +2,7 @@
 /bazel-*
 /external
 /conformance/bazel-*
+/fuzz/artifacts
+/fuzz/corpus
 
 compile_commands.json

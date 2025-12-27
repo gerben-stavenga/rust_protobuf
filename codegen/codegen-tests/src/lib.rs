@@ -2,7 +2,9 @@
 
 #[cfg(test)]
 use protocrap::tests::assert_roundtrip;
-use protocrap::{self, Protobuf, ProtobufExt, containers::Bytes};
+#[cfg(test)]
+use protocrap::{Protobuf, ProtobufRef};
+use protocrap::{self, containers::Bytes};
 include!(concat!(env!("OUT_DIR"), "/test.pc.rs"));
 
 use Test::ProtoType as TestProto;
@@ -48,9 +50,7 @@ pub fn make_large(arena: &mut protocrap::arena::Arena) -> TestProto {
 
 #[cfg(test)]
 fn assert_json_roundtrip<T: Protobuf>(msg: &T) {
-    #[allow(mutable_transmutes)]
-    let mut_msg: &mut T = unsafe { std::mem::transmute(msg) };
-    let serialized = serde_json::to_string(&protocrap::reflection::DynamicMessage::new(mut_msg))
+    let serialized = serde_json::to_string(&protocrap::reflection::DynamicMessageRef::new(msg))
         .expect("should serialize");
 
     println!("Serialized JSON: {}", serialized);

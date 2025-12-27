@@ -1,7 +1,7 @@
 use core::{mem::MaybeUninit, ptr::NonNull};
 
 use crate::{
-    ProtobufExt,
+    ProtobufRef,
     base::Object,
     containers::Bytes,
     tables::{AuxTableEntry, Table},
@@ -725,7 +725,7 @@ pub(crate) enum ResumeResult<'a> {
 }
 
 impl<'a, const STACK_DEPTH: usize> ResumeableEncode<'a, STACK_DEPTH> {
-    pub(crate) fn new<T: ProtobufExt + ?Sized>(obj: &'a T) -> Self {
+    pub(crate) fn new<'pool: 'a, T: ProtobufRef<'pool> + ?Sized>(obj: &'a T) -> Self {
         let table = obj.table();
         let encode_ctx = ObjectEncodeState::new(obj.as_object(), table);
         Self {

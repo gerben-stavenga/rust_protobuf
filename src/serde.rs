@@ -3,7 +3,7 @@ use serde::ser::{SerializeSeq, SerializeStruct};
 use crate::Protobuf;
 use crate::base::Object;
 use crate::google::protobuf::FieldDescriptorProto::{Label, Type};
-use crate::reflection::{DynamicMessage, DynamicMessageArray, Value, default_value};
+use crate::reflection::{DynamicMessageRef, DynamicMessageArray, Value, default_value};
 use crate::tables::{AuxTableEntry, Table};
 
 // Well-known type detection and handling
@@ -167,7 +167,7 @@ fn parse_duration(s: &str) -> Result<(i64, i32), &'static str> {
 
 // Helper to serialize wrapper types
 fn serialize_wrapper<S, T>(
-    msg: &DynamicMessage,
+    msg: &DynamicMessageRef,
     serializer: S,
     extract: impl FnOnce(&Value) -> Option<T>,
 ) -> Result<S::Ok, S::Error>
@@ -192,7 +192,7 @@ where
     }
 }
 
-fn serialize_timestamp<S>(msg: &DynamicMessage, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_timestamp<S>(msg: &DynamicMessageRef, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
@@ -218,7 +218,7 @@ where
     serializer.serialize_str(&timestamp_str)
 }
 
-fn serialize_duration<S>(msg: &DynamicMessage, serializer: S) -> Result<S::Ok, S::Error>
+fn serialize_duration<S>(msg: &DynamicMessageRef, serializer: S) -> Result<S::Ok, S::Error>
 where
     S: serde::Serializer,
 {
@@ -244,7 +244,7 @@ where
     serializer.serialize_str(&duration_str)
 }
 
-impl<'pool, 'msg> serde::Serialize for DynamicMessage<'pool, 'msg> {
+impl<'pool, 'msg> serde::Serialize for DynamicMessageRef<'pool, 'msg> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
@@ -515,14 +515,14 @@ impl<'de, 'arena, 'alloc, T: Protobuf + 'alloc> serde::de::DeserializeSeed<'de>
     }
 }
 
-pub struct ProtobufVisitor<'arena, 'alloc, 'b> {
+pub struct ProtobufVisitor<'arena, 'alloc, 'b, 'pool> {
     obj: &'b mut Object,
-    table: &'static Table,
+    table: &'pool Table,
     arena: &'arena mut crate::arena::Arena<'alloc>,
 }
 
-impl<'de, 'arena, 'alloc, 'b> serde::de::DeserializeSeed<'de>
-    for ProtobufVisitor<'arena, 'alloc, 'b>
+impl<'de, 'arena, 'alloc, 'b, 'pool> serde::de::DeserializeSeed<'de>
+    for ProtobufVisitor<'arena, 'alloc, 'b, 'pool>
 {
     type Value = ();
 
@@ -577,9 +577,9 @@ where
     }
 }
 
-pub fn serde_deserialize_struct<'arena, 'alloc, 'b, 'de, D>(
+pub fn serde_deserialize_struct<'arena, 'alloc, 'b, 'de, 'pool, D>(
     obj: &'b mut Object,
-    table: &'static Table,
+    table: &'pool Table,
     arena: &'arena mut crate::arena::Arena<'alloc>,
     deserializer: D,
 ) -> Result<(), D::Error>
@@ -1043,9 +1043,9 @@ impl<'de> serde::de::Visitor<'de> for FlexibleDoubleVisitor {
 }
 
 // Wrapper deserialization helpers
-fn deserialize_wrapper<'de, 'arena, 'alloc, A, T>(
+fn deserialize_wrapper<'de, A, T>(
     obj: &mut Object,
-    table: &'static Table,
+    table: &Table,
     mut map: A,
 ) -> Result<(), A::Error>
 where
@@ -1068,9 +1068,9 @@ where
     Ok(())
 }
 
-fn deserialize_wrapper_string<'de, 'arena, 'alloc, A>(
+fn deserialize_wrapper_string<'de, 'alloc, A>(
     obj: &mut Object,
-    table: &'static Table,
+    table: &Table,
     arena: &mut crate::arena::Arena<'alloc>,
     mut map: A,
 ) -> Result<(), A::Error>
@@ -1094,9 +1094,9 @@ where
     Ok(())
 }
 
-fn deserialize_wrapper_bytes<'de, 'arena, 'alloc, A>(
+fn deserialize_wrapper_bytes<'de, 'alloc, A>(
     obj: &mut Object,
-    table: &'static Table,
+    table: &Table,
     arena: &mut crate::arena::Arena<'alloc>,
     mut map: A,
 ) -> Result<(), A::Error>
@@ -1120,9 +1120,9 @@ where
     Ok(())
 }
 
-fn deserialize_timestamp<'de, 'arena, 'alloc, A>(
+fn deserialize_timestamp<'de, A>(
     obj: &mut Object,
-    table: &'static Table,
+    table: &Table,
     mut map: A,
 ) -> Result<(), A::Error>
 where
@@ -1159,9 +1159,9 @@ where
     Ok(())
 }
 
-fn deserialize_duration<'de, 'arena, 'alloc, A>(
+fn deserialize_duration<'de, A>(
     obj: &mut Object,
-    table: &'static Table,
+    table: &Table,
     mut map: A,
 ) -> Result<(), A::Error>
 where
@@ -1198,7 +1198,7 @@ where
     Ok(())
 }
 
-impl<'de, 'arena, 'alloc, 'b> serde::de::Visitor<'de> for ProtobufVisitor<'arena, 'alloc, 'b> {
+impl<'de, 'arena, 'alloc, 'b, 'pool> serde::de::Visitor<'de> for ProtobufVisitor<'arena, 'alloc, 'b, 'pool> {
     type Value = ();
 
     fn expecting(&self, formatter: &mut core::fmt::Formatter) -> core::fmt::Result {

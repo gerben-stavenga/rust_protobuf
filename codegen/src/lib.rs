@@ -5,7 +5,7 @@ use std::path::Path;
 use anyhow::Result;
 #[cfg(not(feature = "bootcrap"))]
 use protocrap;
-use protocrap::ProtobufExt;
+use protocrap::ProtobufMut;
 use protocrap::google::protobuf::FileDescriptorSet::ProtoType as FileDescriptorSet;
 #[cfg(feature = "bootcrap")]
 use protocrap_stable as protocrap;

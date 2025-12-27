@@ -36,15 +36,66 @@ pub trait Protobuf: Default + core::fmt::Debug {
     }
 }
 
-pub trait ProtobufExt {
-    fn table(&self) -> &'static tables::Table;
+/// Read-only protobuf operations (encode, serialize, inspect).
+/// The lifetime parameter `'pool` refers to the descriptor/table pool lifetime.
+pub trait ProtobufRef<'pool> {
+    fn table(&self) -> &'pool tables::Table;
 
-    fn descriptor(&self) -> &'static google::protobuf::DescriptorProto::ProtoType {
+    fn descriptor(&self) -> &'pool google::protobuf::DescriptorProto::ProtoType {
         self.table().descriptor
     }
 
     fn as_object(&self) -> &base::Object;
 
+    fn encode_flat<'a, const STACK_DEPTH: usize>(
+        &self,
+        buffer: &'a mut [u8],
+    ) -> anyhow::Result<&'a [u8]> {
+        let mut resumeable_encode = encoding::ResumeableEncode::<STACK_DEPTH>::new(self);
+        let encoding::ResumeResult::Done(buf) = resumeable_encode
+            .resume_encode(buffer)
+            .ok_or(anyhow::anyhow!("Message tree too deep"))?
+        else {
+            return Err(anyhow::anyhow!("Buffer too small for message"));
+        };
+        Ok(buf)
+    }
+
+    #[cfg(feature = "std")]
+    fn encode_vec<const STACK_DEPTH: usize>(&self) -> anyhow::Result<Vec<u8>> {
+        let mut buffer = vec![0u8; 1024];
+        let mut stack = Vec::new();
+        let mut resumeable_encode = encoding::ResumeableEncode::<STACK_DEPTH>::new(self);
+        loop {
+            match resumeable_encode
+                .resume_encode(&mut buffer)
+                .ok_or(anyhow::anyhow!("Message tree too deep"))?
+            {
+                encoding::ResumeResult::Done(buf) => {
+                    let len = buf.len();
+                    let end = buffer.len();
+                    let start = end - len;
+                    buffer.copy_within(start..end, 0);
+                    buffer.truncate(len);
+                    break;
+                }
+                encoding::ResumeResult::NeedsMoreBuffer => {
+                    let len = buffer.len().min(1024 * 1024);
+                    stack.push(core::mem::take(&mut buffer));
+                    buffer = vec![0u8; len * 2];
+                }
+            };
+        }
+        while let Some(old_buffer) = stack.pop() {
+            buffer.extend_from_slice(&old_buffer);
+        }
+        Ok(buffer)
+    }
+}
+
+/// Mutable protobuf operations (decode, deserialize).
+/// Extends ProtobufRef with mutation capabilities.
+pub trait ProtobufMut<'pool>: ProtobufRef<'pool> {
     fn as_object_mut(&mut self) -> &mut base::Object;
 
     #[must_use]
@@ -178,51 +229,6 @@ pub trait ProtobufExt {
         }
     }
 
-    fn encode_flat<'a, const STACK_DEPTH: usize>(
-        &self,
-        buffer: &'a mut [u8],
-    ) -> anyhow::Result<&'a [u8]> {
-        let mut resumeable_encode = encoding::ResumeableEncode::<STACK_DEPTH>::new(self);
-        let encoding::ResumeResult::Done(buf) = resumeable_encode
-            .resume_encode(buffer)
-            .ok_or(anyhow::anyhow!("Message tree too deep"))?
-        else {
-            return Err(anyhow::anyhow!("Buffer too small for message"));
-        };
-        Ok(buf)
-    }
-
-    #[cfg(feature = "std")]
-    fn encode_vec<const STACK_DEPTH: usize>(&self) -> anyhow::Result<Vec<u8>> {
-        let mut buffer = vec![0u8; 1024];
-        let mut stack = Vec::new();
-        let mut resumeable_encode = encoding::ResumeableEncode::<STACK_DEPTH>::new(self);
-        loop {
-            match resumeable_encode
-                .resume_encode(&mut buffer)
-                .ok_or(anyhow::anyhow!("Message tree too deep"))?
-            {
-                encoding::ResumeResult::Done(buf) => {
-                    let len = buf.len();
-                    let end = buffer.len();
-                    let start = end - len;
-                    buffer.copy_within(start..end, 0);
-                    buffer.truncate(len);
-                    break;
-                }
-                encoding::ResumeResult::NeedsMoreBuffer => {
-                    let len = buffer.len().min(1024 * 1024);
-                    stack.push(core::mem::take(&mut buffer));
-                    buffer = vec![0u8; len * 2];
-                }
-            };
-        }
-        while let Some(old_buffer) = stack.pop() {
-            buffer.extend_from_slice(&old_buffer);
-        }
-        Ok(buffer)
-    }
-
     #[cfg(feature = "serde_support")]
     fn serde_deserialize<'arena, 'alloc, 'de, D>(
         &'de mut self,
@@ -237,7 +243,8 @@ pub trait ProtobufExt {
     }
 }
 
-impl<T: Protobuf> ProtobufExt for T {
+// Blanket impl for static protobuf types
+impl<T: Protobuf> ProtobufRef<'static> for T {
     fn table(&self) -> &'static tables::Table {
         T::table()
     }
@@ -245,14 +252,16 @@ impl<T: Protobuf> ProtobufExt for T {
     fn as_object(&self) -> &base::Object {
         <Self as Protobuf>::as_object(self)
     }
+}
 
+impl<T: Protobuf> ProtobufMut<'static> for T {
     fn as_object_mut(&mut self) -> &mut base::Object {
         <Self as Protobuf>::as_object_mut(self)
     }
 }
 
 pub mod tests {
-    use crate::{Protobuf, ProtobufExt};
+    use crate::{Protobuf, ProtobufRef, ProtobufMut};
 
     pub fn assert_roundtrip<T: Protobuf>(msg: &T) {
         let data = msg.encode_vec::<32>().expect("msg should encode");
