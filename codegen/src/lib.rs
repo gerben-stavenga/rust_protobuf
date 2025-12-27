@@ -78,8 +78,10 @@ pub fn generate_proto(out_dir: &str, proto_file: &str, output_name: &str) -> Res
     Ok(())
 }
 
-/// Returns path to checked-in bazelisk binary for current platform
-pub fn get_bazelisk_path(workspace_root: &Path) -> std::path::PathBuf {
+const BAZELISK_VERSION: &str = "1.25.0";
+
+/// Returns path to bazelisk binary, downloading if necessary
+pub fn get_bazelisk_path(_workspace_root: &Path) -> std::path::PathBuf {
     let os = if cfg!(target_os = "linux") {
         "linux"
     } else if cfg!(target_os = "macos") {
@@ -104,7 +106,54 @@ pub fn get_bazelisk_path(workspace_root: &Path) -> std::path::PathBuf {
         ""
     };
 
-    workspace_root.join(format!("tools/bazelisk-{}-{}{}", os, arch, ext))
+    let filename = format!("bazelisk-{}-{}{}", os, arch, ext);
+
+    // Cache in ~/.cache/protocrap/
+    let cache_dir = dirs::cache_dir()
+        .unwrap_or_else(|| std::path::PathBuf::from(".cache"))
+        .join("protocrap")
+        .join(format!("bazelisk-{}", BAZELISK_VERSION));
+
+    let bazelisk_path = cache_dir.join(&filename);
+
+    if !bazelisk_path.exists() {
+        std::fs::create_dir_all(&cache_dir).expect("Failed to create cache directory");
+
+        let url = format!(
+            "https://github.com/bazelbuild/bazelisk/releases/download/v{}/{}",
+            BAZELISK_VERSION, filename
+        );
+
+        eprintln!("Downloading bazelisk from {}...", url);
+
+        let output = std::process::Command::new("curl")
+            .args(["-fsSL", "-o", bazelisk_path.to_str().unwrap(), &url])
+            .output()
+            .expect("Failed to run curl");
+
+        if !output.status.success() {
+            panic!(
+                "Failed to download bazelisk: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+
+        // Make executable on Unix
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            let mut perms = std::fs::metadata(&bazelisk_path)
+                .expect("Failed to get file metadata")
+                .permissions();
+            perms.set_mode(0o755);
+            std::fs::set_permissions(&bazelisk_path, perms)
+                .expect("Failed to set executable permission");
+        }
+
+        eprintln!("Downloaded bazelisk to {:?}", bazelisk_path);
+    }
+
+    bazelisk_path
 }
 
 /// Build a Bazel target and return path to output file in bazel-bin

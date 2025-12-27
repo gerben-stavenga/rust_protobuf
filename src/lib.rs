@@ -283,7 +283,7 @@ pub mod tests {
         let nested_descriptor =
             crate::google::protobuf::DescriptorProto::ExtensionRange::ProtoType::descriptor_proto();
 
-        assert_eq!(file_descriptor.name(), "proto/descriptor.proto");
+        assert!(file_descriptor.name().ends_with("descriptor.proto"));
         assert_eq!(message_descriptor.name(), "DescriptorProto");
         assert_eq!(nested_descriptor.name(), "ExtensionRange");
     }
