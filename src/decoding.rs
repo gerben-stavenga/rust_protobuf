@@ -1,12 +1,14 @@
 use core::mem::MaybeUninit;
 use core::ptr::NonNull;
 
+use crate::ProtobufExt;
 use crate::base::Object;
 use crate::containers::{Bytes, RepeatedField};
 use crate::tables::{AuxTableEntry, Table};
 use crate::utils::{Stack, StackWithStorage};
 use crate::wire::{FieldKind, ReadCursor, SLOP_SIZE, zigzag_decode};
-use crate::ProtobufExt;
+
+const TRACE_TAGS: bool = false;
 
 #[repr(C)]
 #[derive(Clone, Copy)]
@@ -244,7 +246,18 @@ fn skip_length_delimited<'a>(
         return Some((cursor, limit, DecodeObject::SkipLengthDelimited));
     }
     cursor.read_slice(limit - (cursor - end));
-    let ctx = stack.pop()?.into_context(limit, None)?;
+    let stack_entry = stack.pop()?;
+    if stack_entry.obj.is_null() {
+        debug_assert!(stack_entry.delta_limit_or_group_tag >= 0);
+        return skip_group(
+            limit + stack_entry.delta_limit_or_group_tag,
+            cursor,
+            end,
+            stack,
+            arena,
+        );
+    }
+    let ctx = stack_entry.into_context(limit, None)?;
     decode_loop(ctx, cursor, end, stack, arena)
 }
 
@@ -256,7 +269,7 @@ fn skip_group<'a>(
     stack: &mut Stack<StackEntry>,
     arena: &mut crate::arena::Arena,
 ) -> DecodeLoopResult<'a> {
-    let mut limited_end = unsafe { end.offset(limit.min(0)) };
+    let limited_end = unsafe { end.offset(limit.min(0)) };
     // loop popping the stack as needed
     loop {
         // inner parse loop
@@ -264,6 +277,15 @@ fn skip_group<'a>(
             let tag = cursor.read_tag()?;
             let wire_type = tag & 7;
             let field_number = tag >> 3;
+            if field_number == 0 {
+                return None;
+            }
+            if TRACE_TAGS {
+                println!(
+                    "Skipping unknown field with field number {} and wire type {}",
+                    field_number, wire_type
+                );
+            }
             match wire_type {
                 0 => {
                     // varint
@@ -276,16 +298,20 @@ fn skip_group<'a>(
                 2 => {
                     // length-delimited
                     let len = cursor.read_size()?;
+                    debug_assert!(len >= 0);
                     if cursor - limited_end + len <= SLOP_SIZE as isize {
                         cursor.read_slice(len);
                     } else {
                         let new_limit = cursor - end + len;
                         let delta_limit = limit - new_limit;
+                        if delta_limit < 0 {
+                            return None;
+                        }
                         stack.push(StackEntry {
                             obj: core::ptr::null_mut(),
                             table: core::ptr::null(),
                             delta_limit_or_group_tag: delta_limit,
-                        });
+                        })?;
                         return Some((cursor, new_limit, DecodeObject::SkipLengthDelimited));
                     }
                 }
@@ -329,13 +355,19 @@ fn skip_group<'a>(
             if stack.is_empty() {
                 return Some((cursor, limit, DecodeObject::None));
             }
-            limited_end = stack.pop()?.into_context(limit, None)?.limited_end(end);
-            continue;
+            let stack_entry = stack.pop()?;
+            if stack_entry.obj.is_null() {
+                // We are at a limit but we are finiished this group, so parse failed
+                return None;
+            }
+            let ctx = stack_entry.into_context(limit, None)?;
+            // TODO: this relies on tail call optimization
+            return decode_loop(ctx, cursor, end, stack, arena);
         }
         if cursor >= end {
             break;
         }
-        if cursor != limited_end {
+        if cursor >= limited_end {
             return None;
         }
     }
@@ -449,7 +481,7 @@ fn decode_loop<'a>(
         'parse_loop: while cursor < limited_end {
             let tag = cursor.read_tag()?;
             let field_number = tag >> 3;
-            if false {
+            if TRACE_TAGS {
                 let descriptor = ctx.table.descriptor;
                 let field = descriptor
                     .field()
@@ -457,17 +489,19 @@ fn decode_loop<'a>(
                     .find(|f| f.number() as u32 == field_number);
                 if let Some(field) = field {
                     println!(
-                        "Msg {} Field number: {}, Field name {}",
+                        "Msg {} Field number: {}, Field name {}, wire type {}",
                         descriptor.name(),
                         field_number,
-                        field.name()
+                        field.name(),
+                        tag & 7
                     );
                 } else {
                     // field not found in descriptor, treat as unknown
                     println!(
-                        "Msg {} Unknown Field number: {}",
+                        "Msg {} Unknown Field number: {}, wire type {}",
                         descriptor.name(),
-                        field_number
+                        field_number,
+                        tag & 7
                     );
                 }
             }
@@ -594,7 +628,7 @@ fn decode_loop<'a>(
                                 let len = cursor.read_size()?;
 
                                 // Fast path: entire packed field fits in buffer
-                                if cursor - limited_end + len <= SLOP_SIZE as isize {
+                                if cursor - limited_end + len <= 0 as isize {
                                     let field =
                                         ctx.obj.ref_mut::<RepeatedField<u32>>(entry.offset());
                                     let end = (cursor + len).0;
@@ -629,7 +663,7 @@ fn decode_loop<'a>(
                                 let len = cursor.read_size()?;
 
                                 // Fast path: entire packed field fits in buffer
-                                if cursor - limited_end + len <= SLOP_SIZE as isize {
+                                if cursor - limited_end + len <= 0 as isize {
                                     let field =
                                         ctx.obj.ref_mut::<RepeatedField<i64>>(entry.offset());
                                     let end = (cursor + len).0;
@@ -1072,7 +1106,7 @@ impl<'a, const STACK_DEPTH: usize> ResumeableDecode<'a, STACK_DEPTH> {
         let Some(state) = state.go_decode(&patch_buffer[..SLOP_SIZE], &mut stack, arena) else {
             return false;
         };
-        
+
         state.overrun == 0
             && matches!(state.object, DecodeObject::Message(_, _))
             && stack.is_empty()
@@ -1081,9 +1115,18 @@ impl<'a, const STACK_DEPTH: usize> ResumeableDecode<'a, STACK_DEPTH> {
     fn resume_impl(&mut self, buf: &[u8], arena: &mut crate::arena::Arena) -> Option<()> {
         let size = buf.len();
         let mut state = unsafe { self.state.assume_init_read() };
+        if matches!(state.object, DecodeObject::None) {
+            // Already finished
+            return None;
+        }
         if buf.len() > SLOP_SIZE {
             self.patch_buffer[SLOP_SIZE..].copy_from_slice(&buf[..SLOP_SIZE]);
             state = state.go_decode(&self.patch_buffer[..SLOP_SIZE], &mut self.stack, arena)?;
+            if matches!(state.object, DecodeObject::None) {
+                // TODO: Alter the state to indicate that we've ended on a 0 tag
+                // Ended on 0 tag
+                return None;
+            }
             state = state.go_decode(&buf[..size - SLOP_SIZE], &mut self.stack, arena)?;
             self.patch_buffer[..SLOP_SIZE].copy_from_slice(&buf[size - SLOP_SIZE..]);
         } else {

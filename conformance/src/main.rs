@@ -106,8 +106,8 @@ fn do_test_dynamic(
         Err(e) => {
             response.set_skipped(
                 &format!(
-                    "Message type '{}' not found in descriptor pool",
-                    message_type
+                    "Message type '{}' not found in descriptor pool : {:?}",
+                    message_type, e
                 ),
                 arena,
             );

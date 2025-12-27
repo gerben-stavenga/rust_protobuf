@@ -284,13 +284,16 @@ pub mod tests {
             crate::google::protobuf::DescriptorProto::ExtensionRange::ProtoType::descriptor_proto();
 
         assert!(file_descriptor.name().ends_with("descriptor.proto"));
+        println!("File descriptor name: {}", file_descriptor.name());
         assert_eq!(message_descriptor.name(), "DescriptorProto");
         assert_eq!(nested_descriptor.name(), "ExtensionRange");
     }
 
     #[test]
     fn file_descriptor_roundtrip() {
-        assert_roundtrip(crate::google::protobuf::FileDescriptorProto::ProtoType::file_descriptor());
+        assert_roundtrip(
+            crate::google::protobuf::FileDescriptorProto::ProtoType::file_descriptor(),
+        );
     }
 
     #[test]

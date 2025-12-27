@@ -49,7 +49,7 @@ pub fn make_large(arena: &mut protocrap::arena::Arena) -> TestProto {
 #[cfg(test)]
 fn assert_json_roundtrip<T: Protobuf>(msg: &T) {
     #[allow(mutable_transmutes)]
-    let mut_msg:  &mut T = unsafe { std::mem::transmute(msg) };
+    let mut_msg: &mut T = unsafe { std::mem::transmute(msg) };
     let serialized = serde_json::to_string(&protocrap::reflection::DynamicMessage::new(mut_msg))
         .expect("should serialize");
 
@@ -107,7 +107,205 @@ fn test_large_serde_serialization() {
 
 #[test]
 fn test_file_descriptor_serde_serialization() {
-    assert_json_roundtrip(protocrap::google::protobuf::FileDescriptorProto::ProtoType::file_descriptor());
+    assert_json_roundtrip(
+        protocrap::google::protobuf::FileDescriptorProto::ProtoType::file_descriptor(),
+    );
+}
+
+// Chunked streaming tests
+#[cfg(test)]
+mod chunked_tests {
+    use super::*;
+    use protocrap::decoding::ResumeableDecode;
+    use rand::{Rng, SeedableRng, rngs::StdRng};
+
+    #[derive(Clone, Copy, Debug)]
+    enum ChunkStrategy {
+        Uniform(usize),
+        SmallOnly,
+        LargeOnly,
+        Alternating,
+        Random,
+    }
+
+    struct ChunkIter<'a> {
+        data: &'a [u8],
+        pos: usize,
+        strategy: ChunkStrategy,
+        rng: StdRng,
+        toggle: bool,
+    }
+
+    impl<'a> ChunkIter<'a> {
+        fn new(data: &'a [u8], strategy: ChunkStrategy, seed: u64) -> Self {
+            Self {
+                data,
+                pos: 0,
+                strategy,
+                rng: StdRng::seed_from_u64(seed),
+                toggle: false,
+            }
+        }
+
+        fn next_chunk_size(&mut self) -> usize {
+            match self.strategy {
+                ChunkStrategy::Uniform(size) => size,
+                ChunkStrategy::SmallOnly => self.rng.gen_range(1..16),
+                ChunkStrategy::LargeOnly => self.rng.gen_range(16..129),
+                ChunkStrategy::Alternating => {
+                    self.toggle = !self.toggle;
+                    if self.toggle {
+                        self.rng.gen_range(1..16)
+                    } else {
+                        self.rng.gen_range(16..129)
+                    }
+                }
+                ChunkStrategy::Random => self.rng.gen_range(1..129),
+            }
+        }
+    }
+
+    impl<'a> Iterator for ChunkIter<'a> {
+        type Item = &'a [u8];
+
+        fn next(&mut self) -> Option<Self::Item> {
+            if self.pos >= self.data.len() {
+                return None;
+            }
+            let size = self.next_chunk_size();
+            let end = (self.pos + size).min(self.data.len());
+            let chunk = &self.data[self.pos..end];
+            self.pos = end;
+            Some(chunk)
+        }
+    }
+
+    fn random_string(rng: &mut impl Rng, max_len: usize) -> String {
+        let len = rng.gen_range(0..=max_len);
+        (0..len)
+            .map(|_| rng.gen_range(b'a'..=b'z') as char)
+            .collect()
+    }
+
+    fn make_random(
+        arena: &mut protocrap::arena::Arena,
+        rng: &mut impl Rng,
+        depth: u8,
+    ) -> TestProto {
+        let mut msg = TestProto::default();
+
+        if rng.r#gen() {
+            msg.set_x(rng.r#gen());
+        }
+        if rng.r#gen() {
+            msg.set_y(rng.r#gen());
+        }
+        if rng.r#gen() {
+            let s = random_string(rng, 100);
+            msg.set_z(&s, arena);
+        }
+        if depth > 0 && rng.gen_bool(0.3) {
+            let child = msg.child1_mut(arena);
+            *child = make_random(arena, rng, depth - 1);
+        }
+        if depth > 0 && rng.gen_bool(0.3) {
+            let count = rng.gen_range(0..5);
+            for _ in 0..count {
+                let nested = msg.add_nested_message(arena);
+                if rng.r#gen() {
+                    nested.set_x(rng.r#gen());
+                }
+            }
+        }
+        if rng.gen_bool(0.3) {
+            let count = rng.gen_range(0..5);
+            for _ in 0..count {
+                let bytes_data: Vec<u8> = (0..rng.gen_range(0..50)).map(|_| rng.r#gen()).collect();
+                msg.rep_bytes_mut().push(
+                    protocrap::containers::Bytes::from_slice(&bytes_data, arena),
+                    arena,
+                );
+            }
+        }
+
+        msg
+    }
+
+    fn assert_chunked_decode(msg: &TestProto, strategy: ChunkStrategy, chunk_seed: u64) {
+        let encoded = msg.encode_vec::<32>().expect("encode should succeed");
+        let chunks = ChunkIter::new(&encoded, strategy, chunk_seed);
+
+        let mut arena = protocrap::arena::Arena::new(&std::alloc::Global);
+        let mut decoded = TestProto::default();
+        let mut decoder = ResumeableDecode::<32>::new(&mut decoded, isize::MAX);
+
+        for chunk in chunks {
+            if !decoder.resume(chunk, &mut arena) {
+                panic!(
+                    "decode failed at chunk, strategy={:?}, chunk_seed={}",
+                    strategy, chunk_seed
+                );
+            }
+        }
+        if !decoder.finish(&mut arena) {
+            panic!(
+                "decode finish failed, strategy={:?}, chunk_seed={}",
+                strategy, chunk_seed
+            );
+        }
+
+        let reencoded = decoded.encode_vec::<32>().expect("reencode should succeed");
+        assert_eq!(
+            encoded, reencoded,
+            "roundtrip mismatch, strategy={:?}, chunk_seed={}",
+            strategy, chunk_seed
+        );
+    }
+
+    #[test]
+    fn test_chunked_decode_fixed_messages() {
+        let strategies = [
+            ChunkStrategy::Uniform(1),
+            ChunkStrategy::Uniform(7),
+            ChunkStrategy::Uniform(16),
+            ChunkStrategy::SmallOnly,
+            ChunkStrategy::LargeOnly,
+            ChunkStrategy::Alternating,
+            ChunkStrategy::Random,
+        ];
+
+        let mut arena = protocrap::arena::Arena::new(&std::alloc::Global);
+
+        for strategy in strategies {
+            for seed in 0..10 {
+                assert_chunked_decode(&make_small(), strategy, seed);
+                assert_chunked_decode(&make_medium(&mut arena), strategy, seed);
+                assert_chunked_decode(&make_large(&mut arena), strategy, seed);
+            }
+        }
+    }
+
+    #[test]
+    fn test_chunked_decode_random_messages() {
+        let strategies = [
+            ChunkStrategy::SmallOnly,
+            ChunkStrategy::LargeOnly,
+            ChunkStrategy::Alternating,
+            ChunkStrategy::Random,
+        ];
+
+        for strategy in strategies {
+            for msg_seed in 0..50 {
+                let mut arena = protocrap::arena::Arena::new(&std::alloc::Global);
+                let mut rng = StdRng::seed_from_u64(msg_seed);
+                let msg = make_random(&mut arena, &mut rng, 3);
+
+                for chunk_seed in 0..5 {
+                    assert_chunked_decode(&msg, strategy, chunk_seed);
+                }
+            }
+        }
+    }
 }
 
 #[test]

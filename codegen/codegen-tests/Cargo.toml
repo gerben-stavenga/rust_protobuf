@@ -10,6 +10,7 @@ serde_json = "1.0.104"
 
 [dev-dependencies]
 criterion = "0.5"
+rand = "0.8"
 
 [build-dependencies]
 protocrap-codegen = { path = ".." }

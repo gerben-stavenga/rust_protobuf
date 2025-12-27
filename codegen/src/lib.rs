@@ -200,7 +200,11 @@ pub fn generate_from_bazel_target(
     // Write output
     std::fs::write(output_file, code)?;
 
-    println!("cargo:warning=Generated {} from {}", output_file.display(), target);
+    println!(
+        "cargo:warning=Generated {} from {}",
+        output_file.display(),
+        target
+    );
 
     Ok(())
 }

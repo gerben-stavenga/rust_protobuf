@@ -1,10 +1,13 @@
-# Descriptor set for google/protobuf/descriptor.proto
-# Used to bootstrap protocrap's own descriptor.pc.rs
-genrule(
+load("//bazel:proto_descriptor_set.bzl", "proto_descriptor_set")
+
+# Merged descriptor set using protos from @protobuf
+proto_descriptor_set(
     name = "descriptor_set",
-    srcs = ["@protobuf//:descriptor_proto_srcs"],
-    outs = ["descriptor.bin"],
-    cmd = "$(location @protobuf//:protoc) --include_imports --descriptor_set_out=$@ $(SRCS)",
-    tools = ["@protobuf//:protoc"],
+    deps = [
+        "@protobuf//conformance:conformance_proto",
+        "@protobuf//conformance/test_protos:test_messages_proto2_proto",
+        "@protobuf//conformance/test_protos:test_messages_proto3_proto",
+    ],
     visibility = ["//visibility:public"],
 )
+

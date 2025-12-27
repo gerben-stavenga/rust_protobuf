@@ -10,7 +10,9 @@ pub(crate) struct Stack<T> {
 }
 
 impl<T> Stack<T> {
+    #[must_use]
     pub(crate) fn push(&mut self, entry: T) -> Option<&mut T> {
+        // println!("Stack push: {:?}", &entry);
         let sp = *core::hint::black_box(&self.sp);
         if sp == 0 {
             return None;
@@ -21,13 +23,16 @@ impl<T> Stack<T> {
         Some(slot.write(entry))
     }
 
+    #[must_use]
     pub(crate) fn pop(&mut self) -> Option<T> {
         let sp = *core::hint::black_box(&self.sp);
         if sp == self.entries.len() {
             return None;
         }
         self.sp = sp + 1;
-        Some(unsafe { self.entries[sp].assume_init_read() })
+        let x = unsafe { self.entries[sp].assume_init_read() };
+        // println!("Stack pop: {:?}", &x);
+        Some(x)
     }
 
     pub(crate) fn is_empty(&self) -> bool {

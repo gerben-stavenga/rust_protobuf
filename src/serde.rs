@@ -318,7 +318,8 @@ impl<'pool, 'msg> serde::Serialize for DynamicMessage<'pool, 'msg> {
                     // TODO fixme
                     unsafe {
                         let name = std::mem::transmute::<&str, &'static str>(name);
-                        let value = std::mem::transmute::<Value<'_, '_>,  Value<'static, 'msg>>(value);
+                        let value =
+                            std::mem::transmute::<Value<'_, '_>, Value<'static, 'msg>>(value);
                         struct_serializer.serialize_field(name, &value)?;
                     }
                 }

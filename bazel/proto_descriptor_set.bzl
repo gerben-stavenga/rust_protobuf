@@ -1,10 +1,10 @@
 """Rule to generate a merged descriptor set with all transitive imports."""
 
 def _proto_descriptor_set_impl(ctx):
-    # Collect all transitive descriptor sets
-    descriptor_sets = []
-    for dep in ctx.attr.deps:
-        descriptor_sets.extend(dep[ProtoInfo].transitive_descriptor_sets.to_list())
+    # Collect all transitive descriptor sets (depset dedupes shared deps)
+    descriptor_sets = depset(transitive = [
+        dep[ProtoInfo].transitive_descriptor_sets for dep in ctx.attr.deps
+    ]).to_list()
 
     # Merge all descriptor sets into one
     output = ctx.actions.declare_file(ctx.label.name + ".bin")

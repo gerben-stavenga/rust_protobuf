@@ -3,9 +3,7 @@
 use anyhow::{Result, bail};
 use protocrap; // Keep this for generated code
 use protocrap::ProtobufExt;
-use protocrap::google::protobuf::FileDescriptorSet;
 use protocrap::reflection::DescriptorPool;
-use protocrap::tables::Table;
 
 // Include all generated code from conformance_all.proto
 // This includes conformance.proto, test_messages_proto2.proto, and test_messages_proto3.proto
@@ -42,7 +40,7 @@ pub fn load_descriptor_pool() -> Result<DescriptorPool<'static>> {
 
 #[cfg(test)]
 mod tests {
-    use protocrap::tables::AuxTableEntry;
+    use protocrap::tables::{AuxTableEntry, Table};
 
     use crate::conformance::{ConformanceRequest, ConformanceResponse, WireFormat};
 
@@ -50,21 +48,7 @@ mod tests {
 
     #[test]
     fn test_static_vs_dynamic_tables() {
-        // Load conformance FileDescriptorSet
-        let descriptor_bytes = CONFORMANCE_DESCRIPTOR_BYTES;
-
-        let mut arena = protocrap::arena::Arena::new(&std::alloc::Global);
-        let mut fds = FileDescriptorSet::ProtoType::default();
-        assert!(fds.decode_flat::<32>(&mut arena, descriptor_bytes));
-
-        // Build dynamic pool
-        let static_arena = Box::leak(Box::new(arena));
-        let static_fds = Box::leak(Box::new(fds));
-        let mut pool = DescriptorPool::new(Box::leak(Box::new(std::alloc::Global)));
-
-        for file in static_fds.file() {
-            pool.add_file(file);
-        }
+        let pool = load_descriptor_pool().unwrap();
 
         // Test TestAllTypesProto3
         test_message_table(
@@ -263,7 +247,10 @@ mod tests {
                 Err(e) => {
                     eprintln!("Parse error");
                     response.set_parse_error(
-                        &format!("Failed to decode message of type '{}'", message_type),
+                        &format!(
+                            "Failed to decode message of type '{}': {:?}",
+                            message_type, e
+                        ),
                         arena,
                     );
                     return response;

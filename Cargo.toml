@@ -1,5 +1,6 @@
 [workspace]
-members = [".", "codegen/codegen-tests", "benchmark", "codegen", "conformance"]
+members = [".", "codegen/codegen-tests", "benchmark", "codegen", "conformance", "fuzz"]
+exclude = ["fuzz"]
 resolver = "2"
 
 [package]
